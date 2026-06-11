@@ -1,0 +1,236 @@
+﻿/* ═══════════════════════════════════════════════════════════════
+   TeamDashboard.razor.css — scoped dashboard styles
+   ═══════════════════════════════════════════════════════════════ */
+
+.tdash-page {
+    max-width: 960px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-8);
+}
+
+/* ── Header ──────────────────────────────────────────────────── */
+.tdash-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--sp-4);
+}
+
+.tdash-title {
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+}
+
+    .tdash-title i {
+        color: var(--accent-primary);
+        font-size: 22px;
+    }
+
+.tdash-role-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-1) var(--sp-4);
+    border-radius: var(--r-full);
+    background: var(--bg-surface-2);
+    border: 1px solid var(--border-color);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.tdash-role-badge--leader {
+    background: var(--accent-glow);
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+/* ── Loading / error ─────────────────────────────────────────── */
+.tdash-loading,
+.tdash-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-3);
+    padding: var(--sp-12);
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+.tdash-error {
+    color: var(--color-critical);
+}
+
+/* ── Cards ───────────────────────────────────────────────────── */
+.tdash-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: var(--sp-4);
+}
+
+.tdash-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--r-lg);
+    padding: var(--sp-5);
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sp-4);
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow var(--t-fast), border-color var(--t-fast);
+}
+
+.tdash-card--alert {
+    cursor: pointer;
+    border-color: rgba(255, 77, 79, 0.25);
+}
+
+    .tdash-card--alert:hover {
+        box-shadow: var(--shadow-md);
+        border-color: var(--color-critical);
+    }
+
+.tdash-card-icon {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--r-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+}
+
+.tdash-card-icon--team {
+    background: var(--color-info-bg);
+    color: var(--color-info);
+}
+
+.tdash-card-icon--members {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.tdash-card-icon--resources {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+}
+
+.tdash-card-icon--disaster {
+    background: var(--color-critical-bg);
+    color: var(--color-critical);
+}
+
+.tdash-card-icon--idle {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.tdash-card-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.tdash-card-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-muted);
+}
+
+.tdash-card-value {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.tdash-card-value--sm {
+    font-size: 15px;
+}
+
+.tdash-card-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.tdash-card-arrow {
+    color: var(--text-muted);
+    font-size: 13px;
+    align-self: center;
+    flex-shrink: 0;
+}
+
+/* ── Quick links ─────────────────────────────────────────────── */
+.tdash-section-title {
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin: 0 0 var(--sp-4);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+.tdash-links-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-3);
+}
+
+.tdash-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-5);
+    border: 1px solid var(--border-color);
+    border-radius: var(--r-md);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+
+    .tdash-link:hover {
+        background: var(--accent-glow);
+        color: var(--accent-primary);
+        border-color: var(--accent-primary);
+    }
+
+/* ── Spinner (shared class) ──────────────────────────────────── */
+.spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2.5px solid var(--border-color-strong);
+    border-top-color: var(--accent-primary);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 600px) {
+    .tdash-cards {
+        grid-template-columns: 1fr;
+    }
+}

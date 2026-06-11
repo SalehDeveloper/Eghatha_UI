@@ -1,0 +1,371 @@
+﻿/* ═══════════════════════════════════════════════════════════════
+   VOLUNTEER REGISTRATION DETAIL — VolunteerRegistrationDetail.razor.css
+   Inherits design tokens from variables.css.
+   Reuses class names from Volunteers.razor.css where possible.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Page header ── */
+.page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: var(--sp-6);
+    flex-wrap: wrap;
+    gap: var(--sp-4);
+}
+
+.page-title {
+    font-size: 26px;
+    font-weight: 800;
+    font-family: var(--font-display);
+    color: var(--text-primary);
+}
+
+.page-subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.reg-detail-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* ── Loading / error ── */
+.reg-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: var(--sp-12);
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+.api-error {
+    color: var(--color-critical);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--color-critical-bg);
+    border-radius: var(--r-md);
+    border: 1px solid rgba(255,77,79,.2);
+}
+
+/* ── Card ── */
+.card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+.reg-detail-card {
+    max-width: 740px;
+}
+
+/* ── Hero ── */
+.reg-detail-hero {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sp-5);
+    padding: var(--sp-6);
+    border-bottom: 1px solid var(--border-color);
+    flex-wrap: wrap;
+}
+
+.vol-detail-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: var(--r-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 700;
+    font-family: var(--font-display);
+    color: #fff;
+    flex-shrink: 0;
+    border: 2px solid var(--border-color);
+}
+
+.reg-detail-hero-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.vol-detail-name {
+    font-size: 20px;
+    font-weight: 800;
+    font-family: var(--font-display);
+    color: var(--text-primary);
+    line-height: 1.2;
+}
+
+.vol-detail-sub {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+/* ── Badges ── */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: var(--r-full);
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--font-display);
+    text-transform: uppercase;
+}
+
+.badge-pending {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+}
+
+.badge-approved {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.badge-rejected {
+    background: var(--color-critical-bg);
+    color: var(--color-critical);
+}
+
+/* ── Info grid body ── */
+.reg-detail-body {
+    padding: var(--sp-6);
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--sp-5);
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.info-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-muted);
+    font-family: var(--font-display);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+    .info-label i {
+        font-size: 10px;
+        opacity: .7;
+    }
+
+.info-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.font-mono {
+    font-family: var(--font-mono) !important;
+    font-size: 12px !important;
+}
+
+/* ── CV row ── */
+.reg-cv-row {
+    margin-top: var(--sp-5);
+    padding-top: var(--sp-5);
+    border-top: 1px solid var(--border-color);
+}
+
+/* ── Action row ── */
+.detail-actions-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+    padding-top: var(--sp-5);
+    border-top: 1px solid var(--border-color);
+    margin: 0 var(--sp-6);
+    margin-bottom: var(--sp-6);
+}
+
+/* ── Reject inline form ── */
+.reg-reject-form {
+    padding: 0 var(--sp-6) var(--sp-6);
+    border-top: 1px solid var(--border-color);
+    padding-top: var(--sp-5);
+    margin-top: var(--sp-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    animation: fadeSlideIn .2s ease-out;
+}
+
+.reg-reject-actions {
+    display: flex;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+}
+
+/* ── Buttons ── */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 8px 18px;
+    border-radius: var(--r-md);
+    font-size: 13px;
+    font-weight: 500;
+    transition: all var(--t-fast);
+    white-space: nowrap;
+    font-family: var(--font-body);
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.btn-primary {
+    background: var(--accent-primary);
+    color: #fff;
+}
+
+    .btn-primary:hover {
+        background: var(--accent-primary-hover);
+    }
+
+.btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+    .btn-ghost:hover {
+        background: var(--bg-surface-2);
+        color: var(--text-primary);
+    }
+
+.btn-danger {
+    background: var(--color-critical-bg);
+    color: var(--color-critical);
+    border: 1px solid rgba(255,77,79,.3);
+}
+
+    .btn-danger:hover {
+        background: var(--color-critical);
+        color: #fff;
+    }
+
+button:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* ── Form ── */
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.form-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+.form-input {
+    background: var(--bg-surface-2);
+    border: 1px solid var(--border-color);
+    border-radius: var(--r-md);
+    padding: 9px 12px;
+    font-size: 13px;
+    color: var(--text-primary);
+    transition: border-color var(--t-fast), box-shadow var(--t-fast);
+    width: 100%;
+    font-family: var(--font-body);
+    resize: vertical;
+}
+
+    .form-input:focus {
+        outline: none;
+        border-color: var(--accent-primary);
+        box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .form-input::placeholder {
+        color: var(--text-muted);
+    }
+
+/* ── Spinner ── */
+.spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border-color-strong);
+    border-top-color: var(--accent-primary);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+}
+
+.spinner-sm {
+    width: 12px;
+    height: 12px;
+}
+
+/* ── Animations ── */
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes fadeSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* ── Responsive ── */
+@media (max-width: 700px) {
+    .info-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .reg-detail-hero {
+        flex-direction: column;
+    }
+
+    .page-title {
+        font-size: 20px;
+    }
+}
+
+@media (max-width: 480px) {
+    .info-grid {
+        grid-template-columns: 1fr;
+    }
+}

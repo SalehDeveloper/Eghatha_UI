@@ -1,0 +1,885 @@
+﻿@page "/admin/volunteers"
+@layout AdminLayout
+@inject BlazorApp2.Services.ServiceApi ServiceApi
+@using BlazorApp2.Responses
+@using BlazorApp2.Requests
+
+<!-- ═══ PAGE HEADER ═══ -->
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Volunteers</h1>
+        <p class="page-subtitle">Registrations, approved volunteers and rankings</p>
+    </div>
+</div>
+
+<!-- ═══ TABS ═══ -->
+<div class="card">
+    <div class="vol-tabs">
+        <button class="tab @(ActiveTab == "registrations" ? "active" : "")"
+                @onclick='() => SwitchTab("registrations")'>
+            Registrations
+            @if (PendingCount > 0)
+            {
+                <span class="tab-badge">@PendingCount</span>
+            }
+        </button>
+        <button class="tab @(ActiveTab == "volunteers" ? "active" : "")"
+                @onclick='() => SwitchTab("volunteers")'>
+            Volunteers
+        </button>
+        <button class="tab @(ActiveTab == "top" ? "active" : "")"
+                @onclick='() => SwitchTab("top")'>
+            Top Rankings
+        </button>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         TAB 1 — REGISTRATIONS
+    ══════════════════════════════════════ -->
+    @if (ActiveTab == "registrations")
+    {
+        <div class="filter-bar">
+            <div class="search-input-wrap">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input class="filter-search" placeholder="Search by name or email..."
+                       @bind="RegSearch" @bind:event="oninput" @bind:after="OnRegFilterChanged" />
+            </div>
+            <select class="filter-select" @bind="RegStatus" @bind:after="OnRegFilterChanged">
+                <option value="">All</option>
+                @foreach (var s in RegStatuses)
+                {
+                    <option value="@s.Name">@s.Name</option>
+                }
+            </select>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Applicant</th>
+                        <th>Email</th>
+                        <th>Registered</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (RegLoading)
+                    {
+                        <tr><td colspan="5" class="table-loading"><span class="spinner"></span> Loading...</td></tr>
+                    }
+                    else if (!RegItems.Any())
+                    {
+                        <tr><td colspan="5" class="table-empty">No registrations found</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var v in RegItems)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="user-cell">
+                                        @if (!string.IsNullOrEmpty(v.Photo))
+                                        {
+                                            <img src="@v.Photo" class="user-avatar-sm" style="object-fit:cover" alt="@v.FullName" />
+                                        }
+                                        else
+                                        {
+                                            <div class="user-avatar-sm" style="background:@AvatarColor(v.FullName)">
+                                                @Initials(v.FullName)
+                                            </div>
+                                        }
+                                        <div>
+                                            <div class="user-cell-name">@v.FullName</div>
+                                            <div class="user-cell-sub">@v.Speciality · @v.YearsOfExperince yrs</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="font-mono cell-sm">@v.Email</td>
+                                <td class="font-mono cell-sm">@v.RequestedAt.ToString("MMM dd, yyyy")</td>
+                                <td>
+                                    <span class="badge badge-@v.Status.ToLower()">@v.Status</span>
+                                    @if (!string.IsNullOrEmpty(v.RejectionReason))
+                                    {
+                                        <div class="rejection-reason">@v.RejectionReason</div>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="action-btns">
+                                        @if (v.Status == "Pending")
+                                        {
+                                            <button class="btn btn-xs btn-success-sm"
+                                                    @onclick="() => ApproveReg(v.Id)">
+                                                <i class="fa-solid fa-check"></i> Approve
+                                            </button>
+                                            <button class="btn btn-xs btn-danger"
+                                                    @onclick="() => OpenRejectModal(v)">
+                                                <i class="fa-solid fa-xmark"></i> Reject
+                                            </button>
+                                        }
+                                        <button class="btn btn-xs btn-ghost"
+                                                @onclick="() => OpenRegDetail(v)">
+                                            <i class="fa-solid fa-eye"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (RegTotalPages > 1)
+        {
+            <div class="pagination">
+                <span class="pag-info">@RegPagFrom–@RegPagTo of @RegTotalCount</span>
+
+                <button class="page-btn" disabled="@(RegPage == 1)"
+                        @onclick="() => GoRegPage(RegPage - 1)">
+                    ‹
+                </button>
+
+                @foreach (var p in RegPageNumbers)
+                {
+                    @if (p == -1)
+                    {
+                        <span class="page-btn" style="pointer-events:none">…</span>
+                    }
+                    else
+                    {
+                        <button class="page-btn @(p == RegPage ? "active" : "")"
+                                @onclick="() => GoRegPage(p)">
+                            @p
+                        </button>
+                    }
+                }
+
+                <button class="page-btn" disabled="@(RegPage == RegTotalPages)"
+                        @onclick="() => GoRegPage(RegPage + 1)">
+                    ›
+                </button>
+            </div>
+        }
+    }
+
+    <!-- ══════════════════════════════════════
+         TAB 2 — VOLUNTEERS
+    ══════════════════════════════════════ -->
+    @if (ActiveTab == "volunteers")
+    {
+        <div class="filter-bar">
+            <div class="search-input-wrap">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input class="filter-search" placeholder="Search volunteers..."
+                       @bind="VolSearch" @bind:event="oninput" @bind:after="OnVolFilterChanged" />
+            </div>
+            <select class="filter-select" @bind="VolStatus" @bind:after="OnVolFilterChanged">
+                <option value="">All Statuses</option>
+                @foreach (var s in VolStatuses)
+                {
+                    <option value="@s.Name">@s.Name</option>
+                }
+            </select>
+            <select class="filter-select" @bind="VolSpeciality" @bind:after="OnVolFilterChanged">
+                <option value="">All Specialities</option>
+                @foreach (var s in VolSpecialities)
+                {
+                    <option value="@s.Name">@s.Name</option>
+                }
+            </select>
+            <input class="filter-select" placeholder="Province..."
+                   @bind="VolProvince" @bind:event="oninput" @bind:after="OnVolFilterChanged" />
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Volunteer</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Location</th>
+                        <th>Exp</th>
+                        <th>Score</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (VolLoading)
+                    {
+                        <tr><td colspan="8" class="table-loading"><span class="spinner"></span> Loading...</td></tr>
+                    }
+                    else if (!VolItems.Any())
+                    {
+                        <tr><td colspan="8" class="table-empty">No volunteers found</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var v in VolItems)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="user-cell">
+                                        <div class="user-avatar-sm" style="background:@AvatarColor(v.FullName)">
+                                            @Initials(v.FullName)
+                                        </div>
+                                        <div>
+                                            <div class="user-cell-name">@v.FullName</div>
+                                            <div class="user-cell-sub">@v.Speciality</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="font-mono cell-sm">@v.Email</td>
+                                <td class="font-mono cell-sm">@v.PhoneNumber</td>
+                                <td>@v.Province, @v.City</td>
+                                <td class="font-mono">@v.YearsOfExperience y</td>
+                                <td>
+                                    <span class="score-value">@(v.AverageScore > 0 ? v.AverageScore.ToString("F1") : "—")</span>
+                                </td>
+                                <td><span class="badge badge-@v.Status.ToLower()">@v.Status</span></td>
+                                <td>
+                                    <div class="action-btns">
+                                        <button class="btn btn-xs btn-ghost"
+                                                @onclick="() => OpenVolDetail(v)">
+                                            <i class="fa-solid fa-eye"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (VolTotalPages > 1)
+        {
+            <div class="pagination">
+                <span class="pag-info">@VolPagFrom–@VolPagTo of @VolTotalCount</span>
+
+                <button class="page-btn" disabled="@(VolPage == 1)"
+                        @onclick="() => GoVolPage(VolPage - 1)">
+                    ‹
+                </button>
+
+                @foreach (var p in VolPageNumbers)
+                {
+                    @if (p == -1)
+                    {
+                        <span class="page-btn" style="pointer-events:none">…</span>
+                    }
+                    else
+                    {
+                        <button class="page-btn @(p == VolPage ? "active" : "")"
+                                @onclick="() => GoVolPage(p)">
+                            @p
+                        </button>
+                    }
+                }
+
+                <button class="page-btn" disabled="@(VolPage == VolTotalPages)"
+                        @onclick="() => GoVolPage(VolPage + 1)">
+                    ›
+                </button>
+            </div>
+        }
+    }
+
+    <!-- ══════════════════════════════════════
+         TAB 3 — TOP RANKINGS
+    ══════════════════════════════════════ -->
+    @if (ActiveTab == "top")
+    {
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="text-align:center">Rank</th>
+                        <th>Volunteer</th>
+                        <th>Location</th>
+                        <th style="text-align:center">Missions</th>
+                        <th style="text-align:center">Total Score</th>
+                        <th>Avg Score</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (TopLoading)
+                    {
+                        <tr><td colspan="6" class="table-loading"><span class="spinner"></span> Loading...</td></tr>
+                    }
+                    else if (!TopItems.Any())
+                    {
+                        <tr><td colspan="6" class="table-empty">No ranking data</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var v in TopItems)
+                        {
+                            <tr>
+                                <td style="text-align:center;font-size:20px">
+                                    @RankEmoji(v.Rank)
+                                </td>
+                                <td>
+                                    <div class="user-cell">
+                                        <div class="user-avatar-sm" style="background:@AvatarColor(v.FullName)">
+                                            @Initials(v.FullName)
+                                        </div>
+                                        <div>
+                                            <div class="user-cell-name">@v.FullName</div>
+                                            <div class="user-cell-sub">@v.Speciality</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>@v.Province, @v.City</td>
+                                <td class="font-mono" style="text-align:center">@v.TotalMissions</td>
+                                <td class="font-mono" style="text-align:center">@v.TotalScore</td>
+                                <td>
+                                    <div class="score-bar-wrap">
+                                        <div class="score-bar">
+                                            <div class="score-bar-fill"
+                                                 style="width:@(Math.Min((v.AverageScore / 5.0) * 100, 100))%">
+                                            </div>
+                                        </div>
+                                        <span class="score-value">@v.AverageScore.ToString("F2")</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (TopTotalPages > 1)
+        {
+            <div class="pagination">
+                <span class="pag-info">@TopPagFrom–@TopPagTo of @TopTotalCount</span>
+
+                <button class="page-btn" disabled="@(TopPage == 1)"
+                        @onclick="() => GoTopPage(TopPage - 1)">
+                    ‹
+                </button>
+
+                @foreach (var p in TopPageNumbers)
+                {
+                    @if (p == -1)
+                    {
+                        <span class="page-btn" style="pointer-events:none">…</span>
+                    }
+                    else
+                    {
+                        <button class="page-btn @(p == TopPage ? "active" : "")"
+                                @onclick="() => GoTopPage(p)">
+                            @p
+                        </button>
+                    }
+                }
+
+                <button class="page-btn" disabled="@(TopPage == TopTotalPages)"
+                        @onclick="() => GoTopPage(TopPage + 1)">
+                    ›
+                </button>
+            </div>
+        }
+    }
+
+</div><!-- end .card -->
+<!-- ═══════════════════════════════════════
+     REGISTRATION DETAIL MODAL
+═══════════════════════════════════════ -->
+@if (ShowRegDetail && SelectedReg is not null)
+{
+    <div class="modal-overlay open" @onclick="() => ShowRegDetail = false">
+        <div class="modal large" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title">@SelectedReg.FullName</h2>
+                    <p class="modal-subtitle">@SelectedReg.Speciality · @SelectedReg.Status</p>
+                </div>
+                <button class="modal-close" @onclick="() => ShowRegDetail = false">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div style="display:flex;gap:var(--sp-5);align-items:flex-start;flex-wrap:wrap">
+                    @if (!string.IsNullOrEmpty(SelectedReg.Photo))
+                    {
+                        <img src="@SelectedReg.Photo"
+                             style="width:100px;height:100px;border-radius:var(--r-lg);
+                        object-fit:cover;border:1px solid var(--border-color);flex-shrink:0" />
+                    }
+                    <div style="flex:1">
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label">Email</span>
+                                <span class="info-value font-mono">@SelectedReg.Email</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Phone</span>
+                                <span class="info-value font-mono">@SelectedReg.PhoneNumber</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Status</span>
+                                <span class="info-value">
+                                    <span class="badge badge-@SelectedReg.Status.ToLower()">@SelectedReg.Status</span>
+                                </span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Speciality</span>
+                                <span class="info-value">@SelectedReg.Speciality</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Experience</span>
+                                <span class="info-value">@SelectedReg.YearsOfExperince years</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Requested</span>
+                                <span class="info-value font-mono">
+                                    @SelectedReg.RequestedAt.ToString("MMM dd yyyy, HH:mm")
+                                </span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Reviewed</span>
+                                <span class="info-value font-mono">
+                                    @(SelectedReg.ReviewedAt.HasValue
+                                        ? SelectedReg.ReviewedAt.Value.ToString("MMM dd yyyy, HH:mm")
+                                        : "—")
+                                </span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Location</span>
+                                <span class="info-value font-mono">
+                                    @SelectedReg.Province,
+                                    @SelectedReg.City
+                                </span>
+                            </div>
+                            @if (!string.IsNullOrEmpty(SelectedReg.RejectionReason))
+                            {
+                                <div class="info-item" style="grid-column:1/-1">
+                                    <span class="info-label">Rejection Reason</span>
+                                    <span class="info-value" style="color:var(--color-critical)">
+                                        @SelectedReg.RejectionReason
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(SelectedReg.Cv))
+                {
+                    <div style="margin-top:var(--sp-5)">
+                        <a href="@SelectedReg.Cv" target="_blank" class="btn btn-sm btn-ghost">
+                            <i class="fa-solid fa-file-pdf"></i> View CV
+                        </a>
+                    </div>
+                }
+
+                @if (SelectedReg.Status == "Pending")
+                {
+                    <div class="detail-actions-row">
+                        <button class="btn btn-primary"
+                                @onclick="() => ApproveRegFromDetail(SelectedReg.Id)">
+                            <i class="fa-solid fa-check"></i> Approve
+                        </button>
+                        <button class="btn btn-danger"
+                                @onclick="() => OpenRejectModal(SelectedReg)">
+                            <i class="fa-solid fa-xmark"></i> Reject
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ═══════════════════════════════════════
+     REJECT REASON MODAL
+═══════════════════════════════════════ -->
+@if (ShowRejectModal)
+{
+    <div class="modal-overlay open" @onclick="CloseRejectModal">
+        <div class="modal" style="max-width:440px" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title">Reject Registration</h2>
+                    <p class="modal-subtitle">@RejectTargetName</p>
+                </div>
+                <button class="modal-close" @onclick="CloseRejectModal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Rejection Reason *</label>
+                    <textarea class="form-input" rows="3"
+                              placeholder="Explain why this application is rejected..."
+                              @bind="RejectReason"></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(RejectError))
+                {
+                    <div class="api-error" style="margin-top:var(--sp-3)">
+                        <i class="fa-solid fa-circle-exclamation"></i> @RejectError
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" @onclick="CloseRejectModal">Cancel</button>
+                <button class="btn btn-danger" @onclick="SubmitReject" disabled="@IsRejecting">
+                    @if (IsRejecting)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    else
+                    {
+
+                        <i class="fa-solid fa-xmark"></i>
+                    }
+                    Reject
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ═══════════════════════════════════════
+     VOLUNTEER DETAIL MODAL
+═══════════════════════════════════════ -->
+@if (ShowVolDetail && SelectedVol is not null)
+{
+    <div class="modal-overlay open" @onclick="() => ShowVolDetail = false">
+        <div class="modal large" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title">@SelectedVol.FullName</h2>
+                    <p class="modal-subtitle">@SelectedVol.Speciality · @SelectedVol.Province, @SelectedVol.City</p>
+                </div>
+                <button class="modal-close" @onclick="() => ShowVolDetail = false">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="vol-detail-hero">
+                    <div class="vol-detail-avatar" style="background:@AvatarColor(SelectedVol.FullName)">
+                        @Initials(SelectedVol.FullName)
+                    </div>
+                    <div>
+                        <div class="vol-detail-name">@SelectedVol.FullName</div>
+                        <div class="vol-detail-sub">@SelectedVol.Speciality · @SelectedVol.Province, @SelectedVol.City</div>
+                        <div style="margin-top:6px">
+                            <span class="badge badge-@SelectedVol.Status.ToLower()">@SelectedVol.Status</span>
+                        </div>
+                    </div>
+                    <div class="vol-score-big">
+                        <div class="score-number">@(SelectedVol.AverageScore > 0 ? SelectedVol.AverageScore.ToString("F2") : "—")</div>
+                        <div class="score-label">Avg Score</div>
+                    </div>
+                </div>
+
+                <div class="info-grid" style="margin-top:var(--sp-5)">
+                    <div class="info-item">
+                        <span class="info-label">Email</span>
+                        <span class="info-value font-mono">@SelectedVol.Email</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Phone</span>
+                        <span class="info-value font-mono">@SelectedVol.PhoneNumber</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Experience</span>
+                        <span class="info-value">@SelectedVol.YearsOfExperience years</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Province</span>
+                        <span class="info-value">@SelectedVol.Province</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">City</span>
+                        <span class="info-value">@SelectedVol.City</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+
+    // ── Tab ────────────────────────────────────────────────────────
+    private string ActiveTab = "registrations";
+
+    // ── Reference data ─────────────────────────────────────────────
+    private List<ReferenceItem> RegStatuses = new();
+    private List<ReferenceItem> VolStatuses = new();
+    private List<ReferenceItem> VolSpecialities = new();
+
+    // ══ REGISTRATIONS ══════════════════════════════════════════════
+    private bool RegLoading = true;
+    private int RegPage = 1;
+    private const int RegPageSize = 10;
+    private int RegTotalCount = 0;
+    private int RegTotalPages => (int)Math.Ceiling((double)RegTotalCount / RegPageSize);
+    private int RegPagFrom => RegTotalCount == 0 ? 0 : (RegPage - 1) * RegPageSize + 1;
+    private int RegPagTo => Math.Min(RegPage * RegPageSize, RegTotalCount);
+    private IEnumerable<int> RegPageNumbers
+    {
+        get
+        {
+            int start = Math.Max(1, RegPage - 2);
+            int end = Math.Min(RegTotalPages, start + 4);
+            var list = Enumerable.Range(start, end - start + 1).ToList();
+            if (end < RegTotalPages) { list.Add(-1); list.Add(RegTotalPages); }
+            return list;
+        }
+    }
+    private int PendingCount = 0;
+    private List<VolunteerRegisterationResponse> RegItems = new();
+
+    private string RegSearch = "";
+    private string RegStatus = "";
+
+    // Registration detail
+    private bool ShowRegDetail = false;
+    private VolunteerRegisterationResponse? SelectedReg;
+
+    // Reject modal
+    private bool ShowRejectModal = false;
+    private bool IsRejecting = false;
+    private string RejectReason = "";
+    private string RejectError = "";
+    private string RejectTargetName = "";
+    private Guid RejectTargetId;
+
+    // ══ VOLUNTEERS ═════════════════════════════════════════════════
+    private bool VolLoading = false;
+    private int VolPage = 1;
+    private const int VolPageSize = 10;
+    private int VolTotalCount = 0;
+    private int VolTotalPages => (int)Math.Ceiling((double)VolTotalCount / VolPageSize);
+    private int VolPagFrom => VolTotalCount == 0 ? 0 : (VolPage - 1) * VolPageSize + 1;
+    private int VolPagTo => Math.Min(VolPage * VolPageSize, VolTotalCount);
+    private IEnumerable<int> VolPageNumbers
+    {
+        get
+        {
+            int start = Math.Max(1, VolPage - 2);
+            int end = Math.Min(VolTotalPages, start + 4);
+            var list = Enumerable.Range(start, end - start + 1).ToList();
+            if (end < VolTotalPages) { list.Add(-1); list.Add(VolTotalPages); }
+            return list;
+        }
+    }
+    private List<VolunteerResponse> VolItems = new();
+
+    private string VolSearch = "";
+    private string VolStatus = "";
+    private string VolSpeciality = "";
+    private string VolProvince = "";
+
+    // Volunteer detail
+    private bool ShowVolDetail = false;
+    private VolunteerResponse? SelectedVol;
+
+    // ══ TOP RANKINGS ═══════════════════════════════════════════════
+    private bool TopLoading = false;
+    private int TopPage = 1;
+    private const int TopPageSize = 15;
+    private int TopTotalCount = 0;
+    private int TopTotalPages => (int)Math.Ceiling((double)TopTotalCount / TopPageSize);
+    private int TopPagFrom => TopTotalCount == 0 ? 0 : (TopPage - 1) * TopPageSize + 1;
+    private int TopPagTo => Math.Min(TopPage * TopPageSize, TopTotalCount);
+    private IEnumerable<int> TopPageNumbers
+    {
+        get
+        {
+            int start = Math.Max(1, TopPage - 2);
+            int end = Math.Min(TopTotalPages, start + 4);
+            var list = Enumerable.Range(start, end - start + 1).ToList();
+            if (end < TopTotalPages) { list.Add(-1); list.Add(TopTotalPages); }
+            return list;
+        }
+    }
+    private List<VolunteerRankingResponse> TopItems = new();
+
+    // ── Lifecycle ──────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(LoadRefDataAsync(), LoadRegistrationsAsync());
+    }
+
+    // ── Reference data ─────────────────────────────────────────────
+    private async Task LoadRefDataAsync()
+    {
+        var rs = await ServiceApi.GetRegistrationStatusesAsync();
+        var vs = await ServiceApi.GetVolunteerStatusesAsync();
+        var sp = await ServiceApi.GetVolunteerSpecialitiesAsync();
+        if (rs.IsSuccess) RegStatuses = rs.Data;
+        if (vs.IsSuccess) VolStatuses = vs.Data;
+        if (sp.IsSuccess) VolSpecialities = sp.Data;
+    }
+
+    // ── Tab switching ──────────────────────────────────────────────
+    private async Task SwitchTab(string tab)
+    {
+        ActiveTab = tab;
+        if (tab == "registrations") { RegPage = 1; await LoadRegistrationsAsync(); }
+        if (tab == "volunteers") { VolPage = 1; await LoadVolunteersAsync(); }
+        if (tab == "top") { TopPage = 1; await LoadTopAsync(); }
+    }
+
+    // ══ REGISTRATIONS ══════════════════════════════════════════════
+    private async Task LoadRegistrationsAsync()
+    {
+        RegLoading = true;
+        StateHasChanged();
+
+        var result = await ServiceApi.GetRegistrationsAsync(
+            searchTerm: string.IsNullOrEmpty(RegSearch) ? null : RegSearch,
+            status: string.IsNullOrEmpty(RegStatus) ? null : RegStatus,
+            page: RegPage,
+            pageSize: RegPageSize
+        );
+
+        if (result.IsSuccess)
+        {
+            RegItems = result.Data.Items;
+            RegTotalCount = result.Data.TotalCount;
+        }
+
+        // Fetch pending count for the badge (always)
+        var pending = await ServiceApi.GetRegistrationsAsync(status: "Pending", pageSize: 1);
+        if (pending.IsSuccess) PendingCount = pending.Data.TotalCount;
+
+        RegLoading = false;
+    }
+
+    private async Task OnRegFilterChanged() { RegPage = 1; await LoadRegistrationsAsync(); }
+    private async Task GoRegPage(int p) { if (p < 1 || p > RegTotalPages) return; RegPage = p; await LoadRegistrationsAsync(); }
+
+    private async Task ApproveReg(Guid id)
+    {
+        var result = await ServiceApi.ApproveRegistrationAsync(id);
+        if (result.IsSuccess) await LoadRegistrationsAsync();
+    }
+
+    private async Task ApproveRegFromDetail(Guid id)
+    {
+        ShowRegDetail = false;
+        await ApproveReg(id);
+    }
+
+    private void OpenRejectModal(VolunteerRegisterationResponse v)
+    {
+        ShowRegDetail = false;
+        RejectTargetId = v.Id;
+        RejectTargetName = v.FullName;
+        RejectReason = "";
+        RejectError = "";
+        ShowRejectModal = true;
+    }
+
+    private void CloseRejectModal() { ShowRejectModal = false; RejectError = ""; }
+
+    private async Task SubmitReject()
+    {
+        if (string.IsNullOrWhiteSpace(RejectReason))
+        { RejectError = "Rejection reason is required."; return; }
+
+        IsRejecting = true;
+        RejectError = "";
+
+        var result = await ServiceApi.RejectRegistrationAsync(
+            RejectTargetId,
+            new RejectVolunteerRegiserationRequest { Reason = RejectReason.Trim() });
+
+        if (result.IsSuccess)
+        {
+            ShowRejectModal = false;
+            await LoadRegistrationsAsync();
+        }
+        else
+        {
+            RejectError = result.ErrorMessage;
+        }
+        IsRejecting = false;
+    }
+
+    private void OpenRegDetail(VolunteerRegisterationResponse v)
+    {
+        SelectedReg = v;
+        ShowRegDetail = true;
+    }
+
+    // ══ VOLUNTEERS ═════════════════════════════════════════════════
+    private async Task LoadVolunteersAsync()
+    {
+        VolLoading = true;
+        StateHasChanged();
+
+        var result = await ServiceApi.GetVolunteersAsync(
+            search: string.IsNullOrEmpty(VolSearch) ? null : VolSearch,
+            status: string.IsNullOrEmpty(VolStatus) ? null : VolStatus,
+            speciality: string.IsNullOrEmpty(VolSpeciality) ? null : VolSpeciality,
+            province: string.IsNullOrEmpty(VolProvince) ? null : VolProvince,
+            page: VolPage,
+            pageSize: VolPageSize
+        );
+
+        if (result.IsSuccess)
+        {
+            VolItems = result.Data.Items;
+            VolTotalCount = result.Data.TotalCount;
+        }
+
+        VolLoading = false;
+    }
+
+    private async Task OnVolFilterChanged() { VolPage = 1; await LoadVolunteersAsync(); }
+    private async Task GoVolPage(int p) { if (p < 1 || p > VolTotalPages) return; VolPage = p; await LoadVolunteersAsync(); }
+
+    private void OpenVolDetail(VolunteerResponse v) { SelectedVol = v; ShowVolDetail = true; }
+
+    // ══ TOP RANKINGS ═══════════════════════════════════════════════
+    private async Task LoadTopAsync()
+    {
+        TopLoading = true;
+        StateHasChanged();
+
+        var result = await ServiceApi.GetTopVolunteersAsync(
+            page: TopPage, pageSize: TopPageSize);
+
+        if (result.IsSuccess)
+        {
+            TopItems = result.Data.Items;
+            TopTotalCount = result.Data.TotalCount;
+        }
+
+        TopLoading = false;
+    }
+
+    private async Task GoTopPage(int p) { if (p < 1 || p > TopTotalPages) return; TopPage = p; await LoadTopAsync(); }
+
+    // ── Display helpers ────────────────────────────────────────────
+    private static string RankEmoji(int rank) => rank switch
+    {
+        1 => "🥇",
+        2 => "🥈",
+        3 => "🥉",
+        _ => $"#{rank}"
+    };
+
+    private static string AvatarColor(string name)
+    {
+        var c = new[] { "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4" };
+        return c[Math.Abs((name ?? "").Sum(x => (int)x)) % c.Length];
+    }
+
+    private static string Initials(string name)
+    {
+        var p = (name ?? "?").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return p.Length >= 2
+            ? $"{p[0][0]}{p[^1][0]}".ToUpper()
+            : (name ?? "?")[..Math.Min(2, name?.Length ?? 1)].ToUpper();
+    }
+}

@@ -1,0 +1,159 @@
+﻿@* Place this file at: Components/Shared/HubToastContainer.razor
+   Include it once inside AdminLayout.razor, e.g. just before the closing </div> of the layout root *@
+
+@using BlazorApp2.Services
+@inject AdminHubService Hub
+@inject NavigationManager Nav
+@inject NotificationState NotifState
+@implements IDisposable
+
+@if (_toasts.Count > 0)
+{
+    <div class="hub-toast-stack">
+        @foreach (var t in _toasts)
+        {
+            var toast = t; // capture for lambda
+            <div class="hub-toast hub-toast--@toast.Color @(toast.Leaving ? "hub-toast--out" : "")"
+                 @onclick="() => ClickToast(toast)">
+
+                <div class="hub-toast-icon">
+                    <i class="fa-solid @toast.Icon"></i>
+                </div>
+
+                <div class="hub-toast-body">
+                    <div class="hub-toast-title">@toast.Title</div>
+                    <div class="hub-toast-msg">@toast.Message</div>
+                </div>
+
+                <button class="hub-toast-close" @onclick:stopPropagation="true"
+                        @onclick="() => DismissToast(toast)">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<ActiveToast> _toasts = new();
+
+    protected override void OnInitialized()
+    {
+        // Subscribe directly to the typed events instead of the old Action-based
+        // OnToastNotification. This avoids the race condition where the Action fired
+        // before this component was mounted and nobody was listening.
+        Console.WriteLine("[HubToastContainer] ✅ Initialized — subscribing to events");
+        Hub.OnVolunteerRegistered += HandleVolunteerEvent;
+        Hub.OnDisasterReported += HandleDisasterEvent;
+    }
+
+    // ── Typed event handlers ───────────────────────────────────────────────
+
+    private Task HandleVolunteerEvent(VolunteerRegisteredEvent e)
+    {
+       
+        ShowToast(new HubToastNotification(
+            Title: "New Volunteer Registration",
+            Message: e.Message,
+            Icon: "fa-hand-holding-heart",
+            Color: "success",
+            NavigateTo: $"/admin/volunteer-registrations/{e.ReferenceId}"
+        ));
+        return Task.CompletedTask;
+    }
+
+    private Task HandleDisasterEvent(DisasterReportedEvent e)
+    {
+        Console.WriteLine($"[HubToastContainer] ⚡ HandleDisasterEvent called — {e.Message}");
+        ShowToast(new HubToastNotification(
+            Title: "New Disaster Reported",
+            Message: e.Message,
+            Icon: "fa-fire",
+            Color: "critical",
+            NavigateTo: $"/admin/disasters/{e.ReferenceId}"
+        ));
+        return Task.CompletedTask;
+    }
+
+    // ── Toast lifecycle ────────────────────────────────────────────────────
+
+    private void ShowToast(HubToastNotification notif)
+    {
+        Console.WriteLine($"[HubToastContainer] ShowToast called — queuing InvokeAsync");
+        var toast = new ActiveToast(notif);
+
+        // InvokeAsync marshals everything onto the Blazor dispatcher thread so
+        // StateHasChanged is always called from the correct synchronization context,
+        // even though this method is triggered from a SignalR background thread.
+        InvokeAsync(async () =>
+        {
+            Console.WriteLine($"[HubToastContainer] InvokeAsync executing — toast count before: {_toasts.Count}");
+            _toasts.Add(toast);
+            StateHasChanged();
+            Console.WriteLine($"[HubToastContainer] StateHasChanged called — toast count now: {_toasts.Count}");
+            await Task.Delay(5700);
+
+            toast.Leaving = true;   // trigger slide-out CSS animation
+            StateHasChanged();
+
+            await Task.Delay(300);  // let animation finish
+
+            _toasts.Remove(toast);
+            StateHasChanged();
+        });
+    }
+
+    private void ClickToast(ActiveToast toast)
+    {
+        _toasts.Remove(toast);
+        StateHasChanged();
+         NotifState.Decrement();
+         NotifState.SetRecent(new());
+        Nav.NavigateTo(toast.NavigateTo);
+    }
+
+    private void DismissToast(ActiveToast toast)
+    {
+        // Slide out then remove — same path as auto-dismiss but triggered manually
+        InvokeAsync(async () =>
+        {
+            toast.Leaving = true;
+            StateHasChanged();
+
+            await Task.Delay(300);
+
+            _toasts.Remove(toast);
+            StateHasChanged();
+        });
+    }
+
+    // ── Cleanup ────────────────────────────────────────────────────────────
+
+    public void Dispose()
+    {
+        Hub.OnVolunteerRegistered -= HandleVolunteerEvent;
+        Hub.OnDisasterReported -= HandleDisasterEvent;
+    }
+
+    // ── Model ──────────────────────────────────────────────────────────────
+
+    private class ActiveToast
+    {
+        public string Title { get; }
+        public string Message { get; }
+        public string Icon { get; }
+        public string Color { get; }
+        public string NavigateTo { get; }
+        public bool Leaving { get; set; }
+
+        public ActiveToast(HubToastNotification n)
+        {
+            Title = n.Title;
+            Message = n.Message;
+            Icon = n.Icon;
+            Color = n.Color;
+            NavigateTo = n.NavigateTo;
+        }
+    }
+}

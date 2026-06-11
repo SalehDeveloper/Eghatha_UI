@@ -1,0 +1,245 @@
+﻿@page "/admin/volunteer-registrations/{Id:guid}"
+@layout AdminLayout
+@inject BlazorApp2.Services.ServiceApi ServiceApi
+@inject NavigationManager Nav
+@using BlazorApp2.Responses
+@using BlazorApp2.Requests
+
+<!-- ═══ PAGE HEADER ═══ -->
+<div class="page-header">
+    <div class="reg-detail-header-left">
+        <button class="btn btn-ghost" @onclick='() => Nav.NavigateTo("/admin/volunteers")'>
+            <i class="fa-solid fa-arrow-left"></i> Back
+        </button>
+        <div>
+            <h1 class="page-title">Registration Detail</h1>
+            <p class="page-subtitle">Volunteer application review</p>
+        </div>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="reg-loading">
+        <span class="spinner"></span>
+        <span>Loading registration…</span>
+    </div>
+}
+else if (_error is not null)
+{
+    <div class="api-error">
+        <i class="fa-solid fa-triangle-exclamation"></i> @_error
+    </div>
+}
+else if (_reg is not null)
+{
+    <div class="card reg-detail-card">
+
+        <!-- ── Hero ── -->
+        <div class="reg-detail-hero">
+            @if (!string.IsNullOrEmpty(_reg.Photo))
+            {
+                <img src="@_reg.Photo" class="vol-detail-avatar" style="object-fit:cover" alt="@_reg.FullName" />
+            }
+            else
+            {
+                <div class="vol-detail-avatar" style="background:@AvatarColor(_reg.FullName)">
+                    @Initials(_reg.FullName)
+                </div>
+            }
+            <div class="reg-detail-hero-info">
+                <div class="vol-detail-name">@_reg.FullName</div>
+                <div class="vol-detail-sub">@_reg.Speciality · @_reg.YearsOfExperince yrs experience</div>
+                <div style="margin-top:var(--sp-2)">
+                    <span class="badge badge-@_reg.Status.ToLower()">@_reg.Status</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Info Grid ── -->
+        <div class="reg-detail-body">
+            <div class="info-grid">
+
+                <div class="info-item">
+                    <span class="info-label"><i class="fa-solid fa-envelope"></i> Email</span>
+                    <span class="info-value font-mono">@_reg.Email</span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label"><i class="fa-solid fa-phone"></i> Phone</span>
+                    <span class="info-value font-mono">@_reg.PhoneNumber</span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label"><i class="fa-solid fa-location-dot"></i> Location</span>
+                    <span class="info-value">@_reg.Province, @_reg.City</span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label"><i class="fa-solid fa-briefcase"></i> Speciality</span>
+                    <span class="info-value">@_reg.Speciality</span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label"><i class="fa-solid fa-clock-rotate-left"></i> Experience</span>
+                    <span class="info-value">@_reg.YearsOfExperince years</span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label"><i class="fa-solid fa-calendar-plus"></i> Applied</span>
+                    <span class="info-value font-mono">@_reg.RequestedAt.ToString("MMM dd yyyy, HH:mm")</span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label"><i class="fa-solid fa-calendar-check"></i> Reviewed</span>
+                    <span class="info-value font-mono">
+                        @(_reg.ReviewedAt.HasValue
+                            ? _reg.ReviewedAt.Value.ToString("MMM dd yyyy, HH:mm")
+                            : "—")
+                    </span>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_reg.RejectionReason))
+                {
+                    <div class="info-item" style="grid-column:1/-1">
+                        <span class="info-label"><i class="fa-solid fa-circle-xmark"></i> Rejection Reason</span>
+                        <span class="info-value" style="color:var(--color-critical)">@_reg.RejectionReason</span>
+                    </div>
+                }
+
+            </div>
+
+            <!-- ── CV Button ── -->
+            @if (!string.IsNullOrEmpty(_reg.Cv))
+            {
+                <div class="reg-cv-row">
+                    <a href="@_reg.Cv" target="_blank" class="btn btn-ghost">
+                        <i class="fa-solid fa-file-pdf"></i> View CV
+                    </a>
+                </div>
+            }
+        </div>
+
+        <!-- ── Actions ── -->
+        @if (_reg.Status == "Pending")
+        {
+            <div class="detail-actions-row" style="padding:0 var(--sp-6) var(--sp-6)">
+                <button class="btn btn-primary" disabled="@_acting"
+                        @onclick="ApproveAsync">
+                    @if (_acting)
+                    {
+                        <span class="spinner spinner-sm"></span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-check"></i>
+                    }
+                    Approve
+                </button>
+                <button class="btn btn-danger" disabled="@_acting"
+                        @onclick="() => _showReject = true">
+                    <i class="fa-solid fa-xmark"></i> Reject
+                </button>
+            </div>
+        }
+
+        <!-- ── Reject Inline Form ── -->
+        @if (_showReject)
+        {
+            <div class="reg-reject-form">
+                <div class="form-group">
+                    <label class="form-label">Rejection Reason *</label>
+                    <textarea class="form-input" rows="3"
+                              placeholder="Explain why this application is rejected..."
+                              @bind="_rejectReason"></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(_rejectError))
+                {
+                    <div class="api-error" style="margin-top:var(--sp-3)">
+                        <i class="fa-solid fa-circle-exclamation"></i> @_rejectError
+                    </div>
+                }
+                <div class="reg-reject-actions">
+                    <button class="btn btn-danger" disabled="@_acting" @onclick="RejectAsync">
+                        @if (_acting)
+                        {
+                            <span class="spinner spinner-sm"></span>
+                        }
+                        else
+                        {
+                            <i class="fa-solid fa-xmark"></i>
+                        }
+                        Confirm Reject
+                    </button>
+                    <button class="btn btn-ghost" @onclick='() => { _showReject = false; _rejectError = ""; }'>
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        }
+
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private VolunteerRegisterationResponse? _reg;
+    private bool _loading = true;
+    private string? _error;
+    private bool _acting;
+    private bool _showReject;
+    private string _rejectReason = "";
+    private string _rejectError = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await ServiceApi.GetRegisterationByIdAsync(Id);
+        if (result.IsSuccess)
+            _reg = result.Data;
+        else
+            _error = result.ErrorDetail ?? "Registration not found.";
+
+        _loading = false;
+    }
+
+    private async Task ApproveAsync()
+    {
+        _acting = true;
+        var result = await ServiceApi.ApproveRegistrationAsync(Id);
+        if (result.IsSuccess)
+            Nav.NavigateTo("/admin/volunteers");
+        _acting = false;
+    }
+
+    private async Task RejectAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_rejectReason))
+        { _rejectError = "Reason is required."; return; }
+
+        _acting = true;
+        var result = await ServiceApi.RejectRegistrationAsync(
+            Id, new RejectVolunteerRegiserationRequest { Reason = _rejectReason.Trim() });
+
+        if (result.IsSuccess)
+            Nav.NavigateTo("/admin/volunteers");
+        else
+            _rejectError = result.ErrorMessage;
+
+        _acting = false;
+    }
+
+    private static string AvatarColor(string name)
+    {
+        var c = new[] { "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4" };
+        return c[Math.Abs((name ?? "").Sum(x => (int)x)) % c.Length];
+    }
+
+    private static string Initials(string name)
+    {
+        var p = (name ?? "?").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return p.Length >= 2
+            ? $"{p[0][0]}{p[^1][0]}".ToUpper()
+            : (name ?? "?")[..Math.Min(2, name?.Length ?? 1)].ToUpper();
+    }
+}

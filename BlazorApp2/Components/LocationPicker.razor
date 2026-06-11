@@ -1,0 +1,56 @@
+﻿@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="location-picker">
+    <div @ref="_mapEl" id="@_mapId" style="height:350px;width:100%;border-radius:8px;"></div>
+    @if (Latitude != 0 && Longitude != 0)
+    {
+        <p class="location-coords" style="margin-top:8px;font-size:13px;color:var(--text-secondary)">
+            <i class="fa-solid fa-location-dot"></i>
+            Lat: @Latitude.ToString("F5") &nbsp; Lng: @Longitude.ToString("F5")
+        </p>
+    }
+</div>
+
+@code {
+    [Parameter] public double Latitude { get; set; }
+    [Parameter] public double Longitude { get; set; }
+    [Parameter] public EventCallback<(double Lat, double Lng)> OnLocationChanged { get; set; }
+
+    private ElementReference _mapEl;
+    private string _mapId = $"map-{Guid.NewGuid():N}";
+    private DotNetObjectReference<LocationPicker>? _dotNetRef;
+    private bool _initialized = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_initialized)
+        {
+            _initialized = true;
+            double lat = Latitude != 0 ? Latitude : 34.8021;
+            double lng = Longitude != 0 ? Longitude : 38.9968;
+
+            _dotNetRef = DotNetObjectReference.Create(this);
+
+            // Delay so the modal finishes rendering + animating before Leaflet measures the div
+            await Task.Delay(250);
+            await JS.InvokeVoidAsync("mapInterop.initMap", _mapId, lat, lng, _dotNetRef);
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnLocationSelected(double lat, double lng)
+    {
+        Latitude = lat;
+        Longitude = lng;
+        await OnLocationChanged.InvokeAsync((lat, lng));
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_initialized)
+            await JS.InvokeVoidAsync("mapInterop.destroyMap", _mapId);
+        _dotNetRef?.Dispose();
+    }
+}

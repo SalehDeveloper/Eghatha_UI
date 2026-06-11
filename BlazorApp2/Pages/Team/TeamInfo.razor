@@ -1,0 +1,182 @@
+﻿@page "/team/info"
+@layout TeamLayout
+@using BlazorApp2.Services
+@using BlazorApp2.Responses
+@inject ServiceApi Api
+
+<div class="tinfo-page">
+
+    <div class="tinfo-header">
+        <h1 class="tinfo-title">
+            <i class="fa-solid fa-people-group"></i>
+            My Team
+        </h1>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="tinfo-loading"><span class="spinner"></span>Loading team information…</div>
+    }
+    else if (_error is not null)
+    {
+        <div class="tinfo-error"><i class="fa-solid fa-triangle-exclamation"></i>@_error</div>
+    }
+    else if (_team is not null)
+    {
+        <!-- ── Team summary card ── -->
+        <div class="tinfo-summary-card">
+            <div class="tinfo-summary-main">
+                <div class="tinfo-summary-icon">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <div class="tinfo-summary-body">
+                    <div class="tinfo-team-name">@_team.Name</div>
+                    <div class="tinfo-team-meta">
+                        <span class="tinfo-badge tinfo-badge--speciality">@_team.Speciality</span>
+                        <span class="tinfo-badge tinfo-badge--status tinfo-status--@_team.Status.ToLower()">@_team.Status</span>
+                    </div>
+                    <div class="tinfo-team-location">
+                        <i class="fa-solid fa-location-dot"></i>
+                        @_team.City, @_team.Province
+                    </div>
+                </div>
+            </div>
+            <div class="tinfo-summary-stats">
+                <div class="tinfo-stat">
+                    <div class="tinfo-stat-value">@_team.MembersCount</div>
+                    <div class="tinfo-stat-label">Total Members</div>
+                </div>
+                <div class="tinfo-stat">
+                    <div class="tinfo-stat-value" style="color:var(--color-success)">@_team.ActiveMembersCount</div>
+                    <div class="tinfo-stat-label">Active</div>
+                </div>
+                <div class="tinfo-stat">
+                    <div class="tinfo-stat-value" style="color:var(--accent-primary)">
+                        @(_team.IsReadyForMission ? "Yes" : "No")
+                    </div>
+                    <div class="tinfo-stat-label">Mission Ready</div>
+                </div>
+                @if (_team.LeaderName is not null)
+                {
+                    <div class="tinfo-stat">
+                        <div class="tinfo-stat-value tinfo-stat-value--sm">@_team.LeaderName</div>
+                        <div class="tinfo-stat-label">Leader</div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- ── Members list ── -->
+        <div class="tinfo-section">
+            <h2 class="tinfo-section-title">
+                <i class="fa-solid fa-users"></i>
+                Team Members
+            </h2>
+
+            @if (_membersLoading)
+            {
+                <div class="tinfo-loading"><span class="spinner"></span>Loading members…</div>
+            }
+            else if (!_members.Any())
+            {
+                <div class="tinfo-empty">No members found.</div>
+            }
+            else
+            {
+                <div class="tinfo-member-list">
+                    @foreach (var m in _members)
+                    {
+                        <div class="tinfo-member-card @(m.IsLeader ? "tinfo-member-card--leader" : "")">
+                            <div class="tinfo-member-avatar">
+                                @if (!string.IsNullOrEmpty(m.PhotoUrl))
+                                {
+                                    <img src="@m.PhotoUrl" alt="@m.FullName" />
+                                }
+                                else
+                                {
+                                    <i class="fa-solid fa-user"></i>
+                                }
+                            </div>
+                            <div class="tinfo-member-body">
+                                <div class="tinfo-member-name">
+                                    @m.FullName
+                                    @if (m.IsLeader)
+                                    {
+                                        <span class="tinfo-leader-tag"><i class="fa-solid fa-star"></i> Leader</span>
+                                    }
+                                </div>
+                                <div class="tinfo-member-job">@m.JobTitle</div>
+                            </div>
+                            <span class="tinfo-member-status tinfo-status--@m.Status.ToLower()">@m.Status</span>
+                        </div>
+                    }
+                </div>
+
+                @if (_membersTotalPages > 1)
+                {
+                    <div class="tinfo-pagination">
+                        <button class="page-btn" disabled="@(_membersPage == 1)"
+                                @onclick="() => LoadMembersAsync(_membersPage - 1)">
+                            ‹
+                        </button>
+                        <span class="pag-info">@_membersPage / @_membersTotalPages</span>
+                        <button class="page-btn" disabled="@(_membersPage >= _membersTotalPages)"
+                                @onclick="() => LoadMembersAsync(_membersPage + 1)">
+                            ›
+                        </button>
+                    </div>
+                }
+            }
+        </div>
+    }
+
+</div>
+
+@code {
+    private bool _loading = true;
+    private string? _error;
+    private TeamResponse? _team;
+    private List<TeamMemberResponse> _members = new();
+    private bool _membersLoading;
+    private int _membersPage = 1;
+    private int _membersTotalPages = 1;
+    private Guid _teamId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var me = await Api.GetCurrentTeamMemberInfoAsync();
+        if (!me.IsSuccess || me.Data is null)
+        {
+            _error = "Could not load your team info.";
+            _loading = false;
+            return;
+        }
+
+        _teamId = me.Data.TeamId;
+        var teamResult = await Api.GetTeamByIdAsync(_teamId);
+        if (teamResult.IsSuccess)
+            _team = teamResult.Data;
+        else
+            _error = teamResult.ErrorDetail ?? "Failed to load team.";
+
+        _loading = false;
+        await LoadMembersAsync(1);
+    }
+
+    private async Task LoadMembersAsync(int page)
+    {
+        _membersLoading = true;
+        StateHasChanged();
+
+        var result = await Api.GetTeamMembersAsync(_teamId, page, 10);
+        if (result.IsSuccess && result.Data is not null)
+        {
+            _members = result.Data.Items;
+            _membersPage = result.Data.Page;
+            _membersTotalPages = result.Data.TotalPages;
+        }
+
+        _membersLoading = false;
+        StateHasChanged();
+    }
+}

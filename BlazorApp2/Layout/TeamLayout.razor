@@ -1,0 +1,362 @@
+﻿@* Layouts/TeamLayout.razor
+   Shared layout for all Team Member and Team Leader pages.
+   Drop this file at: Layouts/TeamLayout.razor
+   Register it in _Imports.razor or use @layout TeamLayout in each page.
+*@
+
+@inherits LayoutComponentBase
+@using BlazorApp2.Services
+@inject ServiceApi Api
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@inject NotificationState NotifState
+@inject TeamHubService TeamHub
+@implements IAsyncDisposable
+
+<div class="team-layout" data-theme="@(_isDark ? "dark" : "light")">
+
+    <!-- ── Sidebar ── -->
+    <aside class="team-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
+
+        <div class="team-sidebar-header">
+            <div class="team-sidebar-brand">
+                <div class="team-brand-icon"><i class="fa-solid fa-shield-halved"></i></div>
+                <div class="team-brand-text">
+                    <span class="team-brand-title">DERS</span>
+                    <span class="team-brand-sub">Team Portal</span>
+                </div>
+            </div>
+            <button class="team-sidebar-toggle-btn" @onclick="ToggleSidebar" title="Toggle sidebar">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+        </div>
+
+        <nav class="team-nav">
+            <a href="/team" class="team-nav-item @(IsActive("/team", exact: true))">
+                <i class="fa-solid fa-house"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="/team/disaster" class="team-nav-item @(IsActive("/team/disaster"))">
+                <i class="fa-solid fa-fire"></i>
+                <span>Active Disaster</span>
+            </a>
+            <a href="/team/info" class="team-nav-item @(IsActive("/team/info"))">
+                <i class="fa-solid fa-people-group"></i>
+                <span>My Team</span>
+            </a>
+            <a href="/team/resources" class="team-nav-item @(IsActive("/team/resources"))">
+                <i class="fa-solid fa-box-open"></i>
+                <span>Resources</span>
+            </a>
+            @if (_isLeader)
+            {
+                <a href="/team/notifications" class="team-nav-item @(IsActive("/team/notifications"))">
+                    <i class="fa-solid fa-bell"></i>
+                    <span>Notifications</span>
+                    @if (NotifState.UnreadCount > 0)
+                    {
+                        <span class="team-nav-badge">@(NotifState.UnreadCount > 99 ? "99+" : NotifState.UnreadCount.ToString())</span>
+                    }
+                </a>
+            }
+        </nav>
+
+        <!-- Sidebar footer — user card + logout -->
+        <div class="team-sidebar-footer">
+            <div class="team-user-card">
+                <div class="team-user-avatar">
+                    @if (!string.IsNullOrEmpty(_account?.PhotoUrl))
+                    {
+                        <img src="@_account.PhotoUrl" alt="Profile" />
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-user"></i>
+                    }
+                </div>
+                <div class="team-user-info">
+                    <span class="team-user-name">@(_account?.FullName ?? "Team Member")</span>
+                    <span class="team-user-role">
+                        <i class="fa-solid @(_isLeader ? "fa-star" : "fa-user")" style="font-size:10px"></i>
+                        @(_isLeader ? "Team Leader" : "Team Member")
+                    </span>
+                </div>
+                <button class="team-btn-icon" @onclick="Logout" title="Logout">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ── Main content ── -->
+    <div class="team-main @(_sidebarCollapsed ? "sidebar-collapsed" : "")">
+
+        <!-- Topbar -->
+        <header class="team-topbar">
+            <div class="team-topbar-left">
+                <!-- Mobile hamburger (always visible on mobile) -->
+                <button class="team-mobile-menu-btn team-btn-icon" @onclick="ToggleSidebar">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <span class="team-topbar-title">@_pageTitle</span>
+            </div>
+
+            <div class="team-topbar-right">
+
+                <!-- ── Notification bell + dropdown (leader only) ── -->
+                @if (_isLeader)
+                {
+                    <div class="team-notif-wrap" id="team-notif-wrap">
+                        <button class="team-btn-icon team-notif-bell-btn" @onclick="ToggleBell" title="Notifications">
+                            <i class="fa-solid fa-bell"></i>
+                            @if (NotifState.UnreadCount > 0)
+                            {
+                                <span class="team-notif-bell-badge">
+                                    @(NotifState.UnreadCount > 99 ? "99+" : NotifState.UnreadCount.ToString())
+                                </span>
+                            }
+                        </button>
+
+                        @if (NotifState.DropdownOpen)
+                        {
+                            <div class="team-notif-dropdown">
+                                <div class="team-notif-dropdown-header">
+                                    <span>Notifications</span>
+                                    <a href="/team/notifications" @onclick="NotifState.CloseDropdown"
+                                       @onclick:preventDefault="false">View all</a>
+                                </div>
+
+                                @if (_dropdownLoading)
+                                {
+                                    <div class="team-notif-dropdown-loading">
+                                        <span class="spinner spinner-sm"></span>
+                                    </div>
+                                }
+                                else if (!NotifState.Recent.Any())
+                                {
+                                    <div class="team-notif-dropdown-empty">No new notifications</div>
+                                }
+                                else
+                                {
+                                    @foreach (var n in NotifState.Recent)
+                                    {
+                                        var item = n;
+                                        <div class="team-notif-dropdown-item @(item.IsRead ? "" : "unread")"
+                                             @onclick="() => HandleDropdownClick(item)">
+                                            <div class="team-notif-dropdown-icon notif-type--@TypeClass(item.Type)">
+                                                <i class="fa-solid @TypeIcon(item.Type)"></i>
+                                            </div>
+                                            <div class="team-notif-dropdown-body">
+                                                <div class="team-notif-dropdown-title">@item.Title</div>
+                                                <div class="team-notif-dropdown-msg">@item.Message</div>
+                                                <div class="team-notif-dropdown-time">@TimeAgo(item.CreatedAt)</div>
+                                            </div>
+                                            @if (!item.IsRead)
+                                            {
+                                                <span class="team-notif-dot"></span>
+                                            }
+                                        </div>
+                                    }
+                                }
+
+                                <div class="team-notif-dropdown-footer">
+                                    <a href="/team/notifications" @onclick="NotifState.CloseDropdown">
+                                        See all notifications
+                                    </a>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <!-- Theme toggle -->
+                <button class="team-btn-icon" @onclick="ToggleTheme"
+                        title="@(_isDark ? "Switch to light mode" : "Switch to dark mode")">
+                    <i class="fa-solid @(_isDark ? "fa-sun" : "fa-moon")"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Page content slot -->
+        <main class="team-content">
+            @Body
+        </main>
+    </div>
+
+    <!-- ── Real-time toast container (leader only) ── -->
+    @if (_isLeader)
+    {
+        <TeamHubToastContainer />
+    }
+
+</div>
+
+@code {
+    private bool _isLeader;
+    private bool _sidebarCollapsed;
+    private bool _isDark = true;
+    private bool _dropdownLoading;
+    private string _pageTitle = "Team Dashboard";
+    private Responses.AccountResponse? _account;
+
+    protected override async Task OnInitializedAsync()
+    {
+        NotifState.OnChange += StateHasChanged;
+
+        var infoTask  = Api.GetCurrentTeamMemberInfoAsync();
+        var countTask = Api.GetUnreadCountAsync();
+        var acctTask  = Api.GetMyAccount();
+
+        await Task.WhenAll(infoTask, countTask, acctTask);
+
+        if (infoTask.Result.IsSuccess && infoTask.Result.Data is not null)
+            _isLeader = infoTask.Result.Data.IsLeader;
+
+        if (countTask.Result.IsSuccess)
+            NotifState.SetUnreadCount(countTask.Result.Data);
+
+        if (acctTask.Result.IsSuccess && acctTask.Result.Data is not null)
+            _account = acctTask.Result.Data;
+
+        // Subscribe to hub event so notification count bumps on real-time push
+        TeamHub.OnTeamAssignedToDisaster += HandleTeamAssigned;
+        await TeamHub.StartAsync();
+
+        _ = Task.Delay(1500).ContinueWith(_ => InvokeAsync(StateHasChanged));
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var saved = await JS.InvokeAsync<string>("DersTheme.getSaved");
+            _isDark = saved != "light";
+            _pageTitle = GetPageTitle();
+            StateHasChanged();
+        }
+    }
+
+    // ── Hub handler ───────────────────────────────────────────────
+    private Task HandleTeamAssigned(TeamAssignedEvent e)
+    {
+        return InvokeAsync(() =>
+        {
+            NotifState.SetUnreadCount(NotifState.UnreadCount + 1);
+            NotifState.SetRecent(new()); // invalidate dropdown cache
+            _pageTitle = GetPageTitle();
+        });
+    }
+
+    // ── Bell dropdown ─────────────────────────────────────────────
+    private async Task ToggleBell()
+    {
+        NotifState.ToggleDropdown();
+
+        if (NotifState.DropdownOpen && !NotifState.Recent.Any())
+        {
+            _dropdownLoading = true;
+            StateHasChanged();
+
+            var result = await Api.GetNotificationsAsync(1, 5);
+            if (result.IsSuccess && result.Data is not null)
+            {
+                var items = result.Data.Items
+                    .Select(n => new NotificationDropdownItem
+                    {
+                        Id        = n.Id,
+                        Title     = n.Title,
+                        Message   = n.Message,
+                        Url       = n.Url,
+                        IsRead    = n.IsRead,
+                        CreatedAt = n.CreatedAt,
+                        Type      = n.Type
+                    }).ToList();
+
+                NotifState.SetRecent(items);
+            }
+
+            _dropdownLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleDropdownClick(NotificationDropdownItem n)
+    {
+        NotifState.CloseDropdown();
+
+        if (!n.IsRead)
+        {
+            var res = await Api.MarkNotificationReadAsync(n.Id);
+            if (res.IsSuccess)
+            {
+                n.IsRead = true;
+                NotifState.Decrement();
+                NotifState.SetRecent(NotifState.Recent);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(n.Url))
+            Nav.NavigateTo(n.Url);
+    }
+
+    // ── UI helpers ────────────────────────────────────────────────
+    private void ToggleSidebar() => _sidebarCollapsed = !_sidebarCollapsed;
+
+    private async Task ToggleTheme()
+    {
+        _isDark = !_isDark;
+        await JS.InvokeVoidAsync("DersTheme.apply", _isDark ? "dark" : "light");
+    }
+
+    private void Logout() => Nav.NavigateTo("/login");
+
+    private string IsActive(string path, bool exact = false)
+    {
+        var current = Nav.Uri.Replace(Nav.BaseUri.TrimEnd('/'), "");
+        if (exact) return current == path ? "active" : "";
+        return current.StartsWith(path) ? "active" : "";
+    }
+
+    private string GetPageTitle()
+    {
+        var uri = Nav.Uri;
+        if (uri.Contains("/team/disaster"))      return "Active Disaster";
+        if (uri.Contains("/team/info"))           return "My Team";
+        if (uri.Contains("/team/resources"))      return "Resources";
+        if (uri.Contains("/team/notifications"))  return "Notifications";
+        return "Dashboard";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        NotifState.OnChange               -= StateHasChanged;
+        TeamHub.OnTeamAssignedToDisaster  -= HandleTeamAssigned;
+        await TeamHub.DisposeAsync();
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────
+    private static string TypeClass(int type) => type switch
+    {
+        1 => "disaster",
+        2 => "volunteer",
+        3 => "team",
+        _ => "info"
+    };
+
+    private static string TypeIcon(int type) => type switch
+    {
+        1 => "fa-fire",
+        2 => "fa-hand-holding-heart",
+        3 => "fa-people-group",
+        _ => "fa-circle-info"
+    };
+
+    private static string TimeAgo(DateTime dt)
+    {
+        var diff = DateTime.UtcNow - dt.ToUniversalTime();
+        if (diff.TotalMinutes < 1)  return "just now";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours   < 24) return $"{(int)diff.TotalHours}h ago";
+        return $"{(int)diff.TotalDays}d ago";
+    }
+}

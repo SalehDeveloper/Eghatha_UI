@@ -1,0 +1,529 @@
+﻿@page "/admin/dashboard"
+@layout AdminLayout
+@inject BlazorApp2.Services.ServiceApi ServiceApi
+@inject BlazorApp2.Services.AdminHubService HubService
+@inject BlazorApp2.Services.NotificationState NotifState
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@using BlazorApp2.Responses
+@implements IAsyncDisposable
+
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Overview</h1>
+        <p class="page-subtitle">Disaster response command centre · Syria</p>
+    </div>
+    <span class="live-indicator">
+        <span class="pulse"></span>Live Monitoring
+    </span>
+</div>
+
+<!-- ═══ STATS GRID ═══ -->
+<div class="stats-grid">
+    <div class="stat-card critical">
+        <div class="stat-card-header">
+            <span class="stat-label">Active Disasters</span>
+            <span class="stat-icon"><i class="fa-solid fa-fire"></i></span>
+        </div>
+        <div class="stat-value">@ActiveDisasters</div>
+        <div class="stat-trend">Open incidents</div>
+    </div>
+    <div class="stat-card warning">
+        <div class="stat-card-header">
+            <span class="stat-label">Pending Reviews</span>
+            <span class="stat-icon"><i class="fa-solid fa-clock"></i></span>
+        </div>
+        <div class="stat-value">@PendingRegistrations</div>
+        <div class="stat-trend">Volunteer applications</div>
+    </div>
+    <div class="stat-card success">
+        <div class="stat-card-header">
+            <span class="stat-label">Active Users</span>
+            <span class="stat-icon"><i class="fa-solid fa-users"></i></span>
+        </div>
+        <div class="stat-value">@AccountStats.ActiveUsers</div>
+        <div class="stat-trend">of @AccountStats.TotalUsers total</div>
+    </div>
+    <div class="stat-card info">
+        <div class="stat-card-header">
+            <span class="stat-label">Administrators</span>
+            <span class="stat-icon"><i class="fa-solid fa-user-shield"></i></span>
+        </div>
+        <div class="stat-value">@AccountStats.TotalAdmins</div>
+        <div class="stat-trend">@AccountStats.InActiveUsers inactive accounts</div>
+    </div>
+</div>
+
+<!-- ═══ CHARTS ROW ═══ -->
+<div class="charts-row">
+    <div class="card chart-card">
+        <div class="card-header">
+            <h3 class="card-title">Disaster by Status</h3>
+        </div>
+        <div class="chart-body">
+            @if (IsLoading)
+            {
+                <div class="chart-empty"><span class="spinner"></span></div>
+            }
+            else if (!AllDisasters.Any())
+            {
+                <div class="chart-empty">
+                    <i class="fa-solid fa-chart-simple"></i> No disaster data yet
+                </div>
+            }
+            else
+            {
+                <canvas id="disasterChart" height="120"></canvas>
+            }
+        </div>
+    </div>
+    <div class="card chart-card">
+        <div class="card-header">
+            <h3 class="card-title">Disaster by Type</h3>
+        </div>
+        <div class="chart-body">
+            @if (IsLoading)
+            {
+                <div class="chart-empty"><span class="spinner"></span></div>
+            }
+            else if (!AllDisasters.Any())
+            {
+                <div class="chart-empty">
+                    <i class="fa-solid fa-chart-simple"></i> No disaster data yet
+                </div>
+            }
+            else
+            {
+                <canvas id="typeChart" height="180"></canvas>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- ═══ RECENT DISASTERS TABLE ═══ -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Recent Disasters</h3>
+        <a href="/admin/disasters" class="btn btn-sm btn-ghost">
+            View all <i class="fa-solid fa-arrow-right"></i>
+        </a>
+    </div>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Disaster</th>
+                    <th>Province / City</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Started</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (IsLoading)
+                {
+                    <tr><td colspan="6" class="table-loading"><span class="spinner"></span> Loading…</td></tr>
+                }
+                else if (!RecentDisasters.Any())
+                {
+                    <tr><td colspan="6" class="table-empty">No disasters reported yet</td></tr>
+                }
+                else
+                {
+                    @foreach (var d in RecentDisasters)
+                    {
+                        <tr>
+                            <td>
+                                <div class="user-cell">
+                                    <span class="user-avatar-sm disaster-avatar">
+                                        <i class="fa-solid fa-fire"></i>
+                                    </span>
+                                    <div>
+                                        <div class="user-cell-name">@d.Title</div>
+                                        <div class="user-cell-sub font-mono">@d.Id.ToString()[..8]…</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>@d.Province, @d.City</td>
+                            <td>@d.Type</td>
+                            <td><span class="badge badge-@d.Status.ToLower()">@d.Status</span></td>
+                            <td class="font-mono time-cell">@d.StartTime.ToString("MMM dd, HH:mm")</td>
+                            <td>
+                                <div class="action-btns">
+                                    <a href="/admin/disasters/@d.Id" class="btn btn-xs btn-ghost">
+                                        <i class="fa-solid fa-eye"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+
+
+
+<!-- ═══ DISASTER DISPATCH MODAL ═══ -->
+@if (_dispatchModal is not null)
+{
+    <div class="modal-backdrop" @onclick="CloseDispatchModal">
+        <div class="modal modal--lg" @onclick:stopPropagation="true">
+
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fa-solid fa-fire"></i> New Disaster — Dispatch Resources
+                </h3>
+                <button class="modal-close" @onclick="CloseDispatchModal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <p class="modal-desc">@_dispatchModal.Message</p>
+
+                @if (_dispatchLoading)
+                {
+                    <div class="dispatch-loading">
+                        <span class="spinner"></span> Loading recommendations…
+                    </div>
+                }
+                else
+                {
+                    <!-- Recommended Teams -->
+                    <div class="dispatch-section">
+                        <div class="dispatch-section-title">
+                            <i class="fa-solid fa-people-group"></i> Recommended Teams
+                        </div>
+                        @if (!_dispatchModal.Teams.Any())
+                        {
+                            <p class="dispatch-empty">No teams available nearby.</p>
+                        }
+                        else
+                        {
+                            @foreach (var team in _dispatchModal.Teams)
+                            {
+                                var t = team;
+                                <div class="dispatch-item @(_selectedTeams.Contains(t.TeamId) ? "selected" : "")"
+                                     @onclick="() => ToggleTeam(t.TeamId)">
+                                    <div class="dispatch-check">
+                                        @if (_selectedTeams.Contains(t.TeamId))
+                                        {
+                                            <i class="fa-solid fa-circle-check"></i>
+                                        }
+                                        else
+                                        {
+                                            <i class="fa-regular fa-circle"></i>
+                                        }
+                                    </div>
+                                    <div class="dispatch-item-body">
+                                        <div class="dispatch-item-name">@t.TeamName</div>
+                                        <div class="dispatch-item-meta">
+                                            @t.Speciality · @t.DistanceKm.ToString("0.0") km · @t.DurationMinutes.ToString("0") min
+                                        </div>
+                                    </div>
+                                    <div class="dispatch-score">
+                                        <span class="score-pill">@t.Score.ToString("0.0")</span>
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+
+                    <!-- Recommended Volunteers -->
+                    <div class="dispatch-section">
+                        <div class="dispatch-section-title">
+                            <i class="fa-solid fa-hand-holding-heart"></i> Recommended Volunteers
+                        </div>
+                        @if (!_dispatchModal.Volunteers.Any())
+                        {
+                            <p class="dispatch-empty">No volunteers available nearby.</p>
+                        }
+                        else
+                        {
+                            @foreach (var vol in _dispatchModal.Volunteers)
+                            {
+                                var v = vol;
+                                <div class="dispatch-item @(_selectedVolunteers.Contains(v.VolunteerId) ? "selected" : "")"
+                                     @onclick="() => ToggleVolunteer(v.VolunteerId)">
+                                    <div class="dispatch-check">
+                                        @if (_selectedVolunteers.Contains(v.VolunteerId))
+                                        {
+                                            <i class="fa-solid fa-circle-check"></i>
+                                        }
+                                        else
+                                        {
+                                            <i class="fa-regular fa-circle"></i>
+                                        }
+                                    </div>
+                                    <div class="dispatch-item-body">
+                                        <div class="dispatch-item-name">@v.Speciality</div>
+                                        <div class="dispatch-item-meta">
+                                            @v.DistanceKm.ToString("0.0") km · @v.DurationMinutes.ToString("0") min
+                                        </div>
+                                    </div>
+                                    <div class="dispatch-score">
+                                        <span class="score-pill">@v.Score.ToString("0.0")</span>
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(_dispatchError))
+                {
+                    <div class="api-error" style="margin-top:var(--sp-3)">
+                        <i class="fa-solid fa-circle-exclamation"></i> @_dispatchError
+                    </div>
+                }
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-ghost" @onclick="CloseDispatchModal">Cancel</button>
+                <button class="btn btn-primary" @onclick="DispatchSelectedAsync"
+                        disabled="@(_dispatching || (_selectedTeams.Count == 0 && _selectedVolunteers.Count == 0))">
+                    @if (_dispatching)
+                    {
+                        <span class="spinner spinner-sm"></span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-paper-plane"></i>
+                    }
+                    Dispatch (@(_selectedTeams.Count + _selectedVolunteers.Count) selected)
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+
+
+
+
+
+@code {
+    private bool IsLoading = true;
+    private AccountStatisticsResponse AccountStats = new();
+    private int ActiveDisasters = 0;
+    private int PendingRegistrations = 0;
+    private List<DisasterResponse> AllDisasters = new();
+    private List<DisasterResponse> RecentDisasters = new();
+    private bool _chartsRendered = false;
+
+    private static readonly HashSet<string> InactiveStatuses =
+        new(StringComparer.OrdinalIgnoreCase)
+        { "Resolved", "Closed", "Cancelled", };
+
+  
+
+    // Dispatch Modal Lifecycle 
+    private DispatchModalData? _dispatchModal;
+    private bool _dispatchLoading;
+    private bool _dispatching;
+    private string _dispatchError = "";
+    private HashSet<Guid> _selectedTeams = new();
+    private HashSet<Guid> _selectedVolunteers = new();
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        HubService.OnVolunteerRegistered += HandleVolunteerRegistered;
+        HubService.OnDisasterReported += HandleDisasterReported;
+        await FetchAllDisastersAsync();
+        await Task.WhenAll(LoadAccountStatsAsync(), LoadPendingRegistrationsAsync());
+        RecentDisasters = AllDisasters.Take(8).ToList();
+        ActiveDisasters = AllDisasters.Count(d => !InactiveStatuses.Contains(d.Status));
+        IsLoading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // OnAfterRenderAsync fires every render — guard so charts only draw once
+        if (!IsLoading && AllDisasters.Any() && !_chartsRendered)
+        {
+            _chartsRendered = true;
+            await RenderChartsAsync();
+        }
+    }
+
+    private async Task RenderChartsAsync()
+    {
+        // ── Doughnut: type distribution
+        var typeCounts = AllDisasters
+            .GroupBy(d => string.IsNullOrEmpty(d.Type) ? "Unknown" : d.Type)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var typeLabels = typeCounts.Keys.ToArray();
+        var typeData = typeCounts.Values.Cast<object>().ToArray();
+
+        // ── Bar: active vs resolved per type
+        var barTypes = AllDisasters
+            .Select(d => string.IsNullOrEmpty(d.Type) ? "Unknown" : d.Type)
+            .Distinct().OrderBy(t => t).ToArray();
+
+        var active = AllDisasters.Where(d => !InactiveStatuses.Contains(d.Status)).ToList();
+        var resolved = AllDisasters.Where(d => InactiveStatuses.Contains(d.Status)).ToList();
+
+        var activeBars = barTypes.Select(t => (object)active.Count(d =>
+            (string.IsNullOrEmpty(d.Type) ? "Unknown" : d.Type) == t)).ToArray();
+        var resolvedBars = barTypes.Select(t => (object)resolved.Count(d =>
+            (string.IsNullOrEmpty(d.Type) ? "Unknown" : d.Type) == t)).ToArray();
+
+        try
+        {
+            await JS.InvokeVoidAsync("DersCharts.initDisasterChart", barTypes, activeBars, resolvedBars);
+            await JS.InvokeVoidAsync("DersCharts.initDisasterTypeChart", typeLabels, typeData);
+        }
+        catch (JSException ex)
+        {
+            Console.WriteLine($"[Dashboard] Chart JS error: {ex.Message}");
+        }
+    }
+
+    private async Task FetchAllDisastersAsync()
+    {
+        var result = await ServiceApi.GetDisastersAsync(pageSize: 200);
+        if (result.IsSuccess) AllDisasters = result.Data.Items;
+    }
+
+    private async Task LoadAccountStatsAsync()
+    {
+        var result = await ServiceApi.GetAccountStatisticsAsync();
+        if (result.IsSuccess) AccountStats = result.Data;
+    }
+
+    private async Task LoadPendingRegistrationsAsync()
+    {
+        var result = await ServiceApi.GetRegistrationsAsync(status: "Pending", pageSize: 1);
+        if (result.IsSuccess) PendingRegistrations = result.Data.TotalCount;
+    }
+
+    private async Task HandleVolunteerRegistered(Services.VolunteerRegisteredEvent e)
+    {
+        // Bump unread badge
+       /// NotifState.SetUnreadCount(NotifState.UnreadCount + 1);
+        //NotifState.SetRecent(new());
+
+        // Also bump pending registrations counter
+        PendingRegistrations++;
+
+     
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleDisasterReported(Services.DisasterReportedEvent e)
+    {
+        // Bump unread badge
+       // NotifState.SetUnreadCount(NotifState.UnreadCount + 1);
+        //NotifState.SetRecent(new());
+        ActiveDisasters++;
+
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+
+    private Task OpenDispatchModalAsync(RtToast toast)
+    {
+        _dispatchLoading = false;
+        _dispatchError = "";
+        _selectedTeams.Clear();
+        _selectedVolunteers.Clear();
+
+        _dispatchModal = new DispatchModalData(
+            toast.DisasterId!.Value,
+            toast.Message,
+            toast.RecommendedTeams ?? new(),
+            toast.RecommendedVolunteers ?? new()
+        );
+
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private void CloseDispatchModal()
+    {
+        _dispatchModal = null;
+        _selectedTeams.Clear();
+        _selectedVolunteers.Clear();
+        _dispatchError = "";
+    }
+
+    private void ToggleTeam(Guid id)
+    {
+        if (!_selectedTeams.Remove(id)) _selectedTeams.Add(id);
+    }
+
+    private void ToggleVolunteer(Guid id)
+    {
+        if (!_selectedVolunteers.Remove(id)) _selectedVolunteers.Add(id);
+    }
+
+    private async Task DispatchSelectedAsync()
+    {
+        if (_dispatchModal is null) return;
+        _dispatching = true;
+        _dispatchError = "";
+
+        var disasterId = _dispatchModal.DisasterId;
+        var tasks = new List<Task>();
+
+        if (_selectedTeams.Count > 0)
+            tasks.Add(ServiceApi.DispatchTeamsAsync(disasterId,
+                new Requests.DispathTeamsRequest { TeamIds = _selectedTeams.ToList() })
+                .ContinueWith(t =>
+                {
+                    if (!t.Result.IsSuccess)
+                        _dispatchError = t.Result.ErrorDetail ?? "Team dispatch failed.";
+                }));
+
+        if (_selectedVolunteers.Count > 0)
+            tasks.Add(ServiceApi.DispatchVolunteersAsync(disasterId,
+                new Requests.DispathVolunteersRequest { VolunteerIds = _selectedVolunteers.ToList() })
+                .ContinueWith(t =>
+                {
+                    if (!t.Result.IsSuccess)
+                        _dispatchError = t.Result.ErrorDetail ?? "Volunteer dispatch failed.";
+                }));
+
+        await Task.WhenAll(tasks);
+
+        _dispatching = false;
+        if (string.IsNullOrEmpty(_dispatchError))
+            CloseDispatchModal();
+
+        StateHasChanged();
+    }
+    
+    public async ValueTask DisposeAsync()
+    {
+        HubService.OnVolunteerRegistered -= HandleVolunteerRegistered;
+        HubService.OnDisasterReported -= HandleDisasterReported;
+    }
+    
+    
+    
+    // Add to RtToast record:
+    private record RtToast(
+        int Id,
+        string Kind,
+        string Message,
+        string Url,
+        Guid? DisasterId,
+        int DurationMs,
+        List<RecommendedTeamsResponse>? RecommendedTeams,      // ← new
+        List<RecommendedVolunteerResponse>? RecommendedVolunteers); // ← new
+
+    private record DispatchModalData(
+        Guid DisasterId,
+        string Message,
+        List<RecommendedTeamsResponse> Teams,
+        List<RecommendedVolunteerResponse> Volunteers);
+}

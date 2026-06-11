@@ -1,0 +1,94 @@
+﻿.ce-root {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at top, #0f172a, #020617);
+    padding: 20px;
+}
+
+.ce-card {
+    width: 100%;
+    max-width: 520px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 18px;
+    padding: 32px;
+    backdrop-filter: blur(10px);
+    color: white;
+}
+
+.ce-header h1 {
+    margin: 0;
+    font-size: 24px;
+}
+
+.ce-header p {
+    opacity: 0.7;
+    margin-top: 6px;
+    font-size: 14px;
+}
+
+.ce-code-inputs {
+    display: flex;
+    gap: 8px;
+    margin: 24px 0;
+    justify-content: center;
+}
+
+.ce-box {
+    width: 42px;
+    height: 50px;
+    text-align: center;
+    font-size: 20px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.05);
+    color: white;
+    outline: none;
+}
+
+    .ce-box:focus {
+        border-color: #38bdf8;
+        box-shadow: 0 0 0 2px rgba(56,189,248,0.3);
+    }
+
+.ce-btn {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 12px;
+    background: #0ea5e9;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+    .ce-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+.ce-resend {
+    margin-top: 16px;
+    text-align: center;
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+    .ce-resend button {
+        background: none;
+        border: none;
+        color: #38bdf8;
+        cursor: pointer;
+        margin-left: 6px;
+    }
+
+.ce-error {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    padding: 10px;
+    border-radius: 10px;
+    margin-bottom: 12px;
+    color: #fecaca;
+}

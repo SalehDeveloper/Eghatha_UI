@@ -1,0 +1,765 @@
+﻿@page "/volunteer/register"
+@layout EmptyLayout
+@inject BlazorApp2.Services.ServiceApi ServiceApi
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@using Microsoft.AspNetCore.Components.Forms
+
+<PageTitle>Register as a Volunteer — DERS</PageTitle>
+
+<!-- ══ Hero ══════════════════════════════════════════════════════════ -->
+<div class="rv-root">
+
+    <!-- Left panel — branding / hero -->
+    <aside class="rv-hero">
+        <div class="rv-hero-inner">
+            <div class="rv-logo">
+                <i class="fa-solid fa-shield-halved"></i>
+                <span>DERS</span>
+            </div>
+
+            <div class="rv-hero-badge">Syria Response Network</div>
+
+            <h1 class="rv-hero-title">
+                Be the hand<br />
+                that <em>saves</em> a life.
+            </h1>
+
+            <p class="rv-hero-desc">
+                When disaster strikes, every minute matters. Join our network of
+                dedicated volunteers across Syria and make a difference where it
+                counts most — on the ground, in the field, in the moment.
+            </p>
+
+            <ul class="rv-feature-list">
+                <li>
+                    <span class="rv-feature-icon"><i class="fa-solid fa-bolt"></i></span>
+                    <div>
+                        <strong>Rapid dispatch</strong>
+                        <span>Get deployed to active disaster zones within hours</span>
+                    </div>
+                </li>
+                <li>
+                    <span class="rv-feature-icon"><i class="fa-solid fa-people-group"></i></span>
+                    <div>
+                        <strong>Expert teams</strong>
+                        <span>Work alongside trained response professionals</span>
+                    </div>
+                </li>
+                <li>
+                    <span class="rv-feature-icon"><i class="fa-solid fa-map-location-dot"></i></span>
+                    <div>
+                        <strong>Real-time coordination</strong>
+                        <span>Stay connected with command through our live platform</span>
+                    </div>
+                </li>
+            </ul>
+
+            <div class="rv-stats">
+                <div class="rv-stat">
+                    <span class="rv-stat-num">1,200+</span>
+                    <span class="rv-stat-lbl">Volunteers</span>
+                </div>
+                <div class="rv-stat">
+                    <span class="rv-stat-num">340</span>
+                    <span class="rv-stat-lbl">Disasters handled</span>
+                </div>
+                <div class="rv-stat">
+                    <span class="rv-stat-num">14</span>
+                    <span class="rv-stat-lbl">Provinces covered</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Decorative orbs -->
+        <div class="rv-orb rv-orb--1"></div>
+        <div class="rv-orb rv-orb--2"></div>
+        <div class="rv-orb rv-orb--3"></div>
+    </aside>
+
+    <!-- Right panel — form -->
+    <main class="rv-form-panel">
+
+        @if (_submitted)
+        {
+            <!-- Success state -->
+            <div class="rv-success">
+                <div class="rv-success-icon">
+                    <i class="fa-solid fa-circle-check"></i>
+                </div>
+                <h2>Application received!</h2>
+                <p>
+                    Thank you, <strong>@_firstName</strong>. Your volunteer application
+                    has been submitted and is under review. Our team will contact you
+                    shortly via <strong>@_email</strong>.
+                </p>
+                <button class="rv-btn rv-btn--primary" @onclick="Reset">
+                    Submit another application
+                </button>
+                <a href="/" class="rv-btn rv-btn--ghost">Back to home</a>
+            </div>
+        }
+        else
+        {
+            <div class="rv-form-header">
+                <h2 class="rv-form-title">Volunteer Application</h2>
+                <p class="rv-form-sub">
+                    Fill in your details below. All fields are required unless marked optional.
+                </p>
+            </div>
+
+            <!-- Error banner -->
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="rv-alert rv-alert--error">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    @_error
+                </div>
+            }
+
+            <!-- ── Step indicator ── -->
+            <div class="rv-steps">
+                @for (int i = 1; i <= 3; i++)
+                {
+                    var step = i;
+                    <div class="rv-step @(step == _step ? "active" : step < _step ? "done" : "")">
+                        <div class="rv-step-dot">
+                            @if (step < _step)
+                            {
+                                <i class="fa-solid fa-check"></i>
+                            }
+                            else
+                            {
+                                @step
+                            }
+                        </div>
+                        <span class="rv-step-lbl">@StepLabel(step)</span>
+                    </div>
+                    @if (i < 3)
+                    {
+                        <div class="rv-step-line @(step < _step ? "done" : "")"></div>
+                    }
+                }
+            </div>
+
+            <!-- ── Step 1 — Personal info ── -->
+            @if (_step == 1)
+            {
+                <div class="rv-fieldset" key="step1">
+                    <div class="rv-row">
+                        <div class="rv-field">
+                            <label>First name <span class="rv-required">*</span></label>
+                            <input class="rv-input @(HasError("FirstName") ? "rv-input--err" : "")"
+                                   placeholder="Ahmad"
+                                   @bind="_firstName" @bind:event="oninput" />
+                            @if (HasError("FirstName"))
+                            {
+                                <span class="rv-field-err">@_fieldErrors["FirstName"]</span>
+                            }
+                        </div>
+                        <div class="rv-field">
+                            <label>Last name <span class="rv-required">*</span></label>
+                            <input class="rv-input @(HasError("LastName") ? "rv-input--err" : "")"
+                                   placeholder="Al-Hassan"
+                                   @bind="_lastName" @bind:event="oninput" />
+                            @if (HasError("LastName"))
+                            {
+                                <span class="rv-field-err">@_fieldErrors["LastName"]</span>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="rv-field">
+                        <label>Email address <span class="rv-required">*</span></label>
+                        <input type="email"
+                               class="rv-input @(HasError("Email") ? "rv-input--err" : "")"
+                               placeholder="ahmad@example.com"
+                               @bind="_email" @bind:event="oninput" />
+                        @if (HasError("Email"))
+                        {
+                            <span class="rv-field-err">@_fieldErrors["Email"]</span>
+                        }
+                    </div>
+
+                    <div class="rv-field">
+                        <label>Phone number <span class="rv-required">*</span></label>
+                        <input type="tel"
+                               class="rv-input @(HasError("PhoneNumber") ? "rv-input--err" : "")"
+                               placeholder="+963 912 345 678"
+                               @bind="_phone" @bind:event="oninput" />
+                        @if (HasError("PhoneNumber"))
+                        {
+                            <span class="rv-field-err">@_fieldErrors["PhoneNumber"]</span>
+                        }
+                    </div>
+
+                    <div class="rv-field">
+                        <label>Password <span class="rv-required">*</span></label>
+                        <div class="rv-input-wrap">
+                            <input type="@(_showPass ? "text" : "password")"
+                                   class="rv-input @(HasError("Password") ? "rv-input--err" : "")"
+                                   placeholder="Min. 8 characters"
+                                   @bind="_password" @bind:event="oninput" />
+                            <button type="button" class="rv-input-toggle"
+                                    @onclick="() => _showPass = !_showPass">
+                                <i class="fa-solid @(_showPass ? "fa-eye-slash" : "fa-eye")"></i>
+                            </button>
+                        </div>
+                        @if (HasError("Password"))
+                        {
+                            <span class="rv-field-err">@_fieldErrors["Password"]</span>
+                        }
+                    </div>
+
+                    <div class="rv-field">
+                        <label>Profile photo <span class="rv-required">*</span></label>
+                        <label class="rv-file-drop @(_photoBytes is not null ? "rv-file-drop--has-file" : "") @(HasError("Photo") ? "rv-file-drop--err" : "")">
+                            @if (_photoBytes is not null)
+                            {
+                                <i class="fa-solid fa-image"></i>
+                                <span>@_photoName</span>
+                                <small>@FormatBytes(_photoBytes?.Length ?? 0)</small>
+                            }
+                            else
+                            {
+                                <i class="fa-solid fa-cloud-arrow-up"></i>
+                                <span>Click to upload photo</span>
+                                <small>JPG or PNG, max 10 MB</small>
+                            }
+                            <InputFile style="display:none"
+                                       accept="image/jpeg,image/png"
+                                       OnChange="OnPhotoChanged" />
+                        </label>
+                        @if (HasError("Photo"))
+                        {
+                            <span class="rv-field-err">@_fieldErrors["Photo"]</span>
+                        }
+                    </div>
+                </div>
+            }
+
+            <!-- ── Step 2 — Professional details ── -->
+            @if (_step == 2)
+            {
+                <div class="rv-fieldset" key="step2">
+                    <div class="rv-field">
+                        <label>Speciality <span class="rv-required">*</span></label>
+                        <div class="rv-speciality-grid">
+                            @foreach (var s in _specialities)
+                            {
+                                var spec = s;
+                                <button type="button"
+                                        class="rv-spec-card @(_speciality == spec.Value ? "selected" : "") @(HasError("Speciality") ? "rv-spec-card--err" : "")"
+                                        @onclick="() => SelectSpeciality(spec.Value)">
+                                    <i class="fa-solid @spec.Icon"></i>
+                                    <span>@spec.Label</span>
+                                </button>
+                            }
+                        </div>
+                        @if (HasError("Speciality"))
+                        {
+                            <span class="rv-field-err">@_fieldErrors["Speciality"]</span>
+                        }
+                    </div>
+
+                    <div class="rv-field">
+                        <label>Years of experience</label>
+                        <div class="rv-years-slider">
+                            <input type="range" min="0" max="30"
+                                   @bind="_yearsOfExperience" @bind:event="oninput" />
+                            <span class="rv-years-val">@_yearsOfExperience yr@(_yearsOfExperience == 1 ? "" : "s")</span>
+                        </div>
+                    </div>
+
+                    <div class="rv-field">
+                        <label>Upload your CV / Resume <span class="rv-required">*</span></label>
+                        <label class="rv-file-drop rv-file-drop--cv @(_cvBytes is not null ? "rv-file-drop--has-file" : "") @(HasError("Cv") ? "rv-file-drop--err" : "")">
+                            @if (_cvBytes is not null)
+                            {
+                                <i class="fa-solid fa-file-pdf"></i>
+                                <span>@_cvName</span>
+                                <small>@FormatBytes(_cvBytes?.Length ?? 0)</small>
+                            }
+                            else
+                            {
+                                <i class="fa-solid fa-file-arrow-up"></i>
+                                <span>Click to upload CV</span>
+                                <small>PDF, DOC or DOCX, max 20 MB</small>
+                            }
+                            <InputFile style="display:none"
+                                       accept=".pdf,.doc,.docx"
+                                       OnChange="OnCvChanged" />
+                        </label>
+                        @if (HasError("Cv"))
+                        {
+                            <span class="rv-field-err">@_fieldErrors["Cv"]</span>
+                        }
+                    </div>
+                </div>
+            }
+
+            <!-- ── Step 3 — Location ── -->
+            @if (_step == 3)
+            {
+                <div class="rv-fieldset" key="step3">
+                    <p class="rv-location-hint">
+                        <i class="fa-solid fa-circle-info"></i>
+                        Click anywhere on the map to pin your location, or use the button below to auto-detect it.
+                    </p>
+
+                    <!-- Map — initialised in OnAfterRenderAsync when _shouldInitMap is true -->
+                    <div class="rv-field">
+                        <label>Pick location on map <span class="rv-required">*</span></label>
+                        <div id="volunteerMap" style="height:320px;width:100%;border-radius:10px;overflow:hidden;border:1px solid var(--border-color, #e2e8f0);"></div>
+                        <div class="rv-row" style="margin-top:8px;">
+                            <div class="rv-field" style="margin-bottom:0">
+                                <label style="font-size:0.75rem;color:var(--text-muted);">Latitude</label>
+                                <input id="volunteerLat"
+                                       class="rv-input @(HasError("Latitude") ? "rv-input--err" : "")"
+                                       placeholder="Click the map…"
+                                       readonly
+                                       value="@(_latitude != 0 ? _latitude.ToString("F6") : "")" />
+                                @if (HasError("Latitude"))
+                                {
+                                    <span class="rv-field-err">@_fieldErrors["Latitude"]</span>
+                                }
+                            </div>
+                            <div class="rv-field" style="margin-bottom:0">
+                                <label style="font-size:0.75rem;color:var(--text-muted);">Longitude</label>
+                                <input id="volunteerLng"
+                                       class="rv-input @(HasError("Longitude") ? "rv-input--err" : "")"
+                                       placeholder="Click the map…"
+                                       readonly
+                                       value="@(_longitude != 0 ? _longitude.ToString("F6") : "")" />
+                                @if (HasError("Longitude"))
+                                {
+                                    <span class="rv-field-err">@_fieldErrors["Longitude"]</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="button" class="rv-btn rv-btn--locate" @onclick="DetectLocationAsync">
+                        @if (_detectingLocation)
+                        {
+                            <span class="rv-spinner-sm"></span>
+                            <span>Detecting…</span>
+                        }
+                        else
+                        {
+                            <i class="fa-solid fa-location-crosshairs"></i>
+                            <span>Use my current location</span>
+                        }
+                    </button>
+
+                    <!-- Review summary -->
+                    <div class="rv-summary">
+                        <h4>Review your application</h4>
+                        <div class="rv-summary-grid">
+                            <span class="rv-summary-lbl">Name</span>
+                            <span>@_firstName @_lastName</span>
+                            <span class="rv-summary-lbl">Email</span>
+                            <span>@_email</span>
+                            <span class="rv-summary-lbl">Phone</span>
+                            <span>@_phone</span>
+                            <span class="rv-summary-lbl">Speciality</span>
+                            <span>@_speciality</span>
+                            <span class="rv-summary-lbl">Experience</span>
+                            <span>@_yearsOfExperience year(s)</span>
+                            <span class="rv-summary-lbl">Photo</span>
+                            <span>@(_photoName ?? "—")</span>
+                            <span class="rv-summary-lbl">CV</span>
+                            <span>@(_cvName ?? "—")</span>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- ── Navigation buttons ── -->
+            <div class="rv-nav-btns">
+                @if (_step > 1)
+                {
+                    <button type="button" class="rv-btn rv-btn--ghost" @onclick="PrevStep">
+                        <i class="fa-solid fa-arrow-left"></i> Back
+                    </button>
+                }
+                else
+                {
+                    <div></div>
+                }
+
+                @if (_step < 3)
+                {
+                    <button type="button" class="rv-btn rv-btn--primary" @onclick="NextStep">
+                        Continue <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                }
+                else
+                {
+                    <button type="button" class="rv-btn rv-btn--primary rv-btn--submit"
+                            disabled="@_submitting"
+                            @onclick="SubmitAsync">
+                        @if (_submitting)
+                        {
+                            <span class="rv-spinner-sm"></span>
+                            <span>Submitting…</span>
+                        }
+                        else
+                        {
+                            <i class="fa-solid fa-paper-plane"></i>
+                            <span>Submit application</span>
+                        }
+                    </button>
+                }
+            </div>
+
+            <p class="rv-login-hint">
+                Already registered? <a href="/login">Sign in here</a>
+            </p>
+        }
+    </main>
+</div>
+
+@code {
+    // ── State ──────────────────────────────────────────────────────────
+    private int _step = 1;
+    private bool _submitting;
+    private bool _submitted;
+    private bool _detectingLocation;
+    private bool _showPass;
+    private bool _shouldInitMap;
+    private string _error = "";
+    private Dictionary<string, string> _fieldErrors = new();
+
+    // Step 1 — personal
+    private string _firstName = "";
+    private string _lastName = "";
+    private string _email = "";
+    private string _phone = "";
+    private string _password = "";
+ 
+
+    // Step 2 — professional
+    private string _speciality = "";
+    private int _yearsOfExperience = 2;
+   
+    private byte[]? _photoBytes;
+    private string? _photoName;
+    private string? _photoContentType;
+
+    private byte[]? _cvBytes;
+    private string? _cvName;
+    private string? _cvContentType;
+
+    // Step 3 — location (populated by map interop)
+    private double _latitude;
+    private double _longitude;
+
+    private readonly List<(string Value, string Label, string Icon)> _specialities = new()
+{
+    ("Medical",                "Medical",                "fa-kit-medical"),
+    ("Rescue",                 "Rescue",                 "fa-life-ring"),
+    ("FireFighting",           "FireFighting",           "fa-fire-extinguisher"),
+    ("Logistics",              "Logistics",              "fa-truck"),
+    ("Communication",          "Communication",          "fa-radio"),
+    ("Engineering",            "Engineering",            "fa-helmet-safety"),
+    ("General",                "General",                "fa-users"),
+
+    ("SearchAndRescue",        "SearchAndRescue",        "fa-magnifying-glass-location"),
+    ("FirstAid",               "FirstAid",               "fa-briefcase-medical"),
+    ("HeavyEquipmentOperator", "HeavyEquipmentOperator", "fa-truck-monster"),
+    ("WaterRescue",            "WaterRescue",            "fa-person-swimming"),
+    ("MountainRescue",         "MountainRescue",         "fa-mountain"),
+    ("FieldCommander",         "FieldCommander",         "fa-user-tie")
+};
+
+    // ── Helpers ────────────────────────────────────────────────────────
+    private static string StepLabel(int s) => s switch
+    {
+        1 => "Personal",
+        2 => "Professional",
+        3 => "Location",
+        _ => ""
+    };
+
+    private bool HasError(string field) => _fieldErrors.ContainsKey(field);
+
+    private static string FormatBytes(long bytes) =>
+        bytes switch
+        {
+            < 1024 => $"{bytes} B",
+            < 1024 * 1024 => $"{bytes / 1024} KB",
+            _ => $"{bytes / (1024 * 1024):F1} MB"
+        };
+
+    // ── Lifecycle ──────────────────────────────────────────────────────
+    // Mirrors the Teams.razor pattern exactly: set _shouldInitMap = true,
+    // then OnAfterRenderAsync picks it up once the DOM element exists.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_shouldInitMap)
+        {
+            _shouldInitMap = false;
+            // Small delay so the step transition finishes painting the div
+            await Task.Delay(150);
+            await JS.InvokeVoidAsync("mapInterop.initVolunteerMap");
+        }
+    }
+
+    // ── Step validation ────────────────────────────────────────────────
+    private bool ValidateStep1()
+    {
+        _fieldErrors.Clear();
+
+        if (string.IsNullOrWhiteSpace(_firstName))
+            _fieldErrors["FirstName"] = "First name is required.";
+
+        if (string.IsNullOrWhiteSpace(_lastName))
+            _fieldErrors["LastName"] = "Last name is required.";
+
+        if (string.IsNullOrWhiteSpace(_email) || !_email.Contains('@') || !_email.Contains('.'))
+            _fieldErrors["Email"] = "A valid email address is required.";
+
+        if (string.IsNullOrWhiteSpace(_phone))
+            _fieldErrors["PhoneNumber"] = "Phone number is required.";
+        else if (_phone.Replace(" ", "").Replace("-", "").Replace("+", "").Length < 7)
+            _fieldErrors["PhoneNumber"] = "Phone number is too short.";
+
+        if (string.IsNullOrWhiteSpace(_password))
+            _fieldErrors["Password"] = "Password is required.";
+        else if (_password.Length < 8)
+            _fieldErrors["Password"] = "Password must be at least 8 characters.";
+
+        if (_photoBytes is null)
+            _fieldErrors["Photo"] = "Please upload a profile photo.";
+
+        return _fieldErrors.Count == 0;
+    }
+
+    private bool ValidateStep2()
+    {
+        _fieldErrors.Clear();
+
+        if (string.IsNullOrWhiteSpace(_speciality))
+            _fieldErrors["Speciality"] = "Please select a speciality.";
+
+        if (_yearsOfExperience < 0 || _yearsOfExperience > 30)
+            _fieldErrors["YearsOfExperience"] = "Years of experience must be between 0 and 30.";
+
+        if (_cvBytes is null)
+            _fieldErrors["Cv"] = "Please upload your CV.";
+
+        return _fieldErrors.Count == 0;
+    }
+
+    private async Task<bool> ValidateStep3Async()
+    {
+        _fieldErrors.Clear();
+
+        // Read lat/lng from the map input fields via JS (same pattern as Teams.razor)
+        try
+        {
+            var lat = await JS.InvokeAsync<double>("window.getVolunteerLat");
+            var lng = await JS.InvokeAsync<double>("window.getVolunteerLng");
+            _latitude = lat;
+            _longitude = lng;
+        }
+        catch
+        {
+            // JS may not have values yet — fall through to the 0,0 check below
+        }
+
+        if (_latitude == 0 && _longitude == 0)
+            _fieldErrors["Latitude"] = "Please click the map to pick a location.";
+
+        return _fieldErrors.Count == 0;
+    }
+
+    // ── Navigation ─────────────────────────────────────────────────────
+    private void NextStep()
+    {
+        _error = "";
+        var valid = _step switch
+        {
+            1 => ValidateStep1(),
+            2 => ValidateStep2(),
+            _ => true
+        };
+
+        if (valid)
+        {
+            _step++;
+            if (_step == 3)
+                _shouldInitMap = true; // triggers OnAfterRenderAsync to init the map
+        }
+    }
+
+    private void PrevStep()
+    {
+        _fieldErrors.Clear();
+        _error = "";
+        if (_step > 1) _step--;
+    }
+
+    // ── Geolocation (browser GPS fallback) ────────────────────────────
+    private async Task DetectLocationAsync()
+    {
+        _detectingLocation = true;
+        StateHasChanged();
+        try
+        {
+            var coords = await JS.InvokeAsync<double[]>("DersGeo.getCurrentPosition");
+            if (coords?.Length >= 2)
+            {
+                _latitude = coords[0];
+                _longitude = coords[1];
+                _fieldErrors.Remove("Latitude");
+                // Pan the map to the detected position
+                await JS.InvokeVoidAsync("mapInterop.setVolunteerMapPin", _latitude, _longitude);
+            }
+        }
+        catch
+        {
+            _error = "Could not detect location. Please click the map to pick your position.";
+        }
+        finally
+        {
+            _detectingLocation = false;
+        }
+    }
+
+    // ── Submit ─────────────────────────────────────────────────────────
+    private async Task SubmitAsync()
+    {
+        _error = "";
+        if (!await ValidateStep3Async()) return;
+
+        _submitting = true;
+        StateHasChanged();
+
+        try
+        {
+            var result = await ServiceApi.CreateVolunteerAsync(
+       _firstName,
+       _lastName,
+       _email,
+       _phone,
+       _password,
+       _speciality,
+       _latitude,
+       _longitude,
+       _yearsOfExperience,
+       _photoBytes!,
+       _photoName!,
+       _photoContentType!,
+       _cvBytes!,
+       _cvName!,
+       _cvContentType!);
+
+            if (result.IsSuccess)
+            {
+                _submitted = true;
+                Nav.NavigateTo($"/confirm-email?email={Uri.EscapeDataString(_email)}");
+            }
+            else
+            {
+                // Map server field errors back to steps if present
+                if (result.ValidationErrors is { Count: > 0 })
+                {
+                    foreach (var kvp in result.ValidationErrors)
+                        _fieldErrors[kvp.Key] = string.Join(", ", kvp.Value);
+
+                    // Jump back to the step that has the first error
+                    if (_fieldErrors.Keys.Any(k => k is "FirstName" or "LastName" or "Email" or "PhoneNumber" or "Password" or "Photo"))
+                        _step = 1;
+                    else if (_fieldErrors.Keys.Any(k => k is "Speciality" or "Cv" or "YearsOfExperience"))
+                        _step = 2;
+                }
+                else
+                {
+                    _error = result.ErrorDetail ?? "Submission failed. Please try again.";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"An unexpected error occurred: {ex.Message}";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    // ── File change handlers ───────────────────────────────────────────
+    private async Task OnPhotoChanged(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+
+        using var ms = new MemoryStream();
+
+        await file.OpenReadStream(10 * 1024 * 1024)
+                  .CopyToAsync(ms);
+
+        _photoBytes = ms.ToArray();
+        _photoName = file.Name;
+        _photoContentType = file.ContentType;
+
+        _fieldErrors.Remove("Photo");
+    }
+
+    private async Task OnCvChanged(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+
+        using var ms = new MemoryStream();
+
+        await file.OpenReadStream(20 * 1024 * 1024)
+                  .CopyToAsync(ms);
+
+        _cvBytes = ms.ToArray();
+        _cvName = file.Name;
+        _cvContentType = file.ContentType;
+
+        _fieldErrors.Remove("Cv");
+    }
+
+    // ── Speciality selection ───────────────────────────────────────────
+    private void SelectSpeciality(string value)
+    {
+        _speciality = value;
+        _fieldErrors.Remove("Speciality");
+    }
+
+    // ── Reset ──────────────────────────────────────────────────────────
+    private void Reset()
+    {
+        _step = 1;
+        _submitted = false;
+        _submitting = false;
+
+        _firstName = "";
+        _lastName = "";
+        _email = "";
+        _phone = "";
+        _password = "";
+
+        _photoBytes = null;
+        _photoName = null;
+        _photoContentType = null;
+
+        _cvBytes = null;
+        _cvName = null;
+        _cvContentType = null;
+
+        _speciality = "";
+        _yearsOfExperience = 2;
+
+        _latitude = 0;
+        _longitude = 0;
+
+        _error = "";
+        _fieldErrors.Clear();
+        _shouldInitMap = false;
+    }
+}

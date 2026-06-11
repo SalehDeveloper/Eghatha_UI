@@ -1,0 +1,402 @@
+﻿@page "/admin/map"
+@layout AdminLayout
+@using BlazorApp2.Services
+@using BlazorApp2.Responses
+@inject IJSRuntime JS
+@inject ServiceApi Api
+@inject AdminHubService Hub
+@implements IAsyncDisposable
+
+<!-- ═══════════════════════════════ PAGE HEADER ═══════════════════════════════ -->
+<div class="page-header">
+    <div>
+        <div class="page-title">Live Map</div>
+        <div class="page-subtitle">Real-time disaster incidents &amp; team positions</div>
+    </div>
+    <div class="live-indicator">
+        <span class="pulse"></span>
+        LIVE
+    </div>
+</div>
+
+<!-- ═══════════════════════════════ LAYOUT ═══════════════════════════════════ -->
+<div class="map-layout">
+
+    <!-- ── Sidebar ────────────────────────────────────────────────────────── -->
+    <aside class="map-sidebar">
+
+        <!-- Legend -->
+        <div class="card legend-card">
+            <div class="card-header">
+                <span class="card-title">
+                    <i class="fa-solid fa-circle-info"></i> Legend
+                </span>
+            </div>
+            <div class="legend-items">
+                <div class="legend-item">
+                    <span class="legend-dot disaster"></span> Active Incident
+                </div>
+                <div class="legend-item">
+                    <span class="legend-dot team"></span> Response Team
+                </div>
+                <div class="legend-item">
+                    <span class="legend-dot resolved"></span> Resolved Incident
+                </div>
+                <div class="legend-item legend-item--tether">
+                    <span class="tether-line-sample"></span> Team Assignment Link
+                </div>
+            </div>
+        </div>
+
+        <!-- Incidents list -->
+        <div class="card events-card">
+            <div class="card-header">
+                <span class="card-title">
+                    <i class="fa-solid fa-fire"></i> Incidents
+                </span>
+                <span class="badge @(_disasters.Count > 0 ? "badge-active" : "badge-resolved")">
+                    @_disasters.Count
+                </span>
+            </div>
+            <div class="event-list">
+                @if (_disasters.Count == 0)
+                {
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🗺️</div>
+                        <div class="empty-state-title">No incidents yet</div>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var d in _disasters)
+                    {
+                        var teams = _teamsByDisaster.TryGetValue(d.Id, out var t) ? t : new();
+                        <div class="map-event-item" @onclick="() => FlyToDisaster(d)">
+                            <div class="map-event-header">
+                                <!-- Colour swatch matching the map pin -->
+                                <span class="event-dot @(IsResolved(d.Status) ? "resolved" : "disaster")"
+                                      style="@(!IsResolved(d.Status) ? $"background:{GetDisasterColor(d.Id)};box-shadow:0 0 5px {GetDisasterColor(d.Id)};" : "")">
+                                </span>
+                                <span class="map-event-title">@d.Title</span>
+                            </div>
+                            <div class="map-event-meta">
+                                @d.Province@(string.IsNullOrEmpty(d.City) ? "" : $", {d.City}")
+                            </div>
+
+                            @if (teams.Count > 0)
+                            {
+                                <!-- Teams assigned to this incident -->
+                                <div class="incident-teams">
+                                    @foreach (var team in teams)
+                                    {
+                                        <span class="team-chip"
+                                              style="border-color:@GetDisasterColor(d.Id);color:@GetDisasterColor(d.Id)">
+                                            <i class="fa-solid fa-people-group"></i>
+                                            @team.Name
+                                        </span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+
+        <!-- Teams without assignment -->
+        @{
+            var unassigned = _teamPositions.Values
+                .Where(tp => tp.DisasterId == null)
+                .ToList();
+        }
+        @if (unassigned.Count > 0)
+        {
+            <div class="card events-card" style="flex:0;max-height:200px">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fa-solid fa-people-group"></i> Unassigned Teams
+                    </span>
+                    <span class="badge badge-inprogress">@unassigned.Count</span>
+                </div>
+                <div class="event-list">
+                    @foreach (var tp in unassigned)
+                    {
+                        <div class="map-event-item">
+                            <div class="map-event-header">
+                                <span class="event-dot" style="background:#3b82f6"></span>
+                                <span class="map-event-title">@(tp.Name ?? $"Team {tp.TeamId.ToString()[..6]}…")</span>
+                            </div>
+                            <div class="map-event-meta">@tp.Speciality</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+    </aside>
+
+    <!-- ── Map ────────────────────────────────────────────────────────────── -->
+    <div class="map-container-wrap">
+        <div id="ders-live-map" class="leaflet-map"></div>
+
+        <!-- Custom controls -->
+        <div class="map-controls">
+            <button class="map-ctrl-btn" title="Reset View" @onclick="ResetView">
+                <i class="fa-solid fa-compress"></i>
+            </button>
+        </div>
+    </div>
+
+</div>
+
+@code {
+
+    /* ── State ──────────────────────────────────────────────────────── */
+
+    // All disasters shown on the map
+    private List<DisasterMapItem> _disasters = new();
+
+    // Teams grouped by the disaster they are assigned to
+    private Dictionary<Guid, List<TeamDetailResponse>> _teamsByDisaster = new();
+
+    // All live team positions (including unassigned)
+    private Dictionary<Guid, TeamPosition> _teamPositions = new();
+
+    // Colour assignments (mirrors JS palette, deterministic round-robin)
+    private readonly string[] _palette = {
+        "#ef4444","#f97316","#eab308","#22c55e",
+        "#06b6d4","#8b5cf6","#ec4899","#14b8a6",
+        "#f43f5e","#a855f7"
+    };
+    private Dictionary<Guid, string> _disasterColors = new();
+    private int _paletteIdx = 0;
+
+    private bool _mapReady = false;
+
+    /* ── Lifecycle ──────────────────────────────────────────────────── */
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        await JS.InvokeVoidAsync("DersLiveMap.init", "ders-live-map");
+        _mapReady = true;
+
+        await LoadInitialDataAsync();
+        WireHub();
+    }
+
+    /* ── Initial data load ──────────────────────────────────────────── */
+
+    private async Task LoadInitialDataAsync()
+    {
+        // Load disasters
+        var disasterResult = await Api.GetDisastersAsync(status:"InProgress");
+        if (disasterResult.IsSuccess && disasterResult.Data is not null)
+        {
+            foreach (var d in disasterResult.Data.Items)
+            {
+                var item = DisasterMapItem.From(d);
+                _disasters.Add(item);
+                _ = GetDisasterColor(item.Id); // pre-assign colour
+
+                await JS.InvokeVoidAsync("DersLiveMap.addPin", new
+                {
+                    id = item.Id.ToString(),
+                    title = item.Title,
+                    lat = item.Lat,
+                    lng = item.Lng,
+                    type = item.Type,
+                    status = item.Status,
+                    province = item.Province,
+                    city = item.City,
+                    detailUrl = $"/admin/disasters/{item.Id}",
+                    teamsCount = 0,
+                });
+            }
+        }
+
+        // Load teams with positions
+        var teamsResult = await Api.GetMapTeamsAsync();
+        if (teamsResult.IsSuccess && teamsResult.Data is not null)
+        {
+            foreach (var team in teamsResult.Data)
+            {
+                // Skip teams with no location at all
+                if (team.Latitude == 0 && team.Longitude == 0) continue;
+
+                var pos = new TeamPosition(
+                    team.Id, team.Latitude, team.Longitude,
+                    team.Name, team.Speciality, team.Status,
+                    team.AssignedDisasterId
+                );
+                _teamPositions[team.Id] = pos;
+
+                if (team.AssignedDisasterId.HasValue)
+                {
+                    if (!_teamsByDisaster.ContainsKey(team.AssignedDisasterId.Value))
+                        _teamsByDisaster[team.AssignedDisasterId.Value] = new();
+                    _teamsByDisaster[team.AssignedDisasterId.Value]
+                        .Add(new TeamDetailResponse
+                        {
+                            Id = team.Id,
+                            Name = team.Name,
+                        });
+                }
+
+                await PushTeamPinAsync(pos);
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    /* ── SignalR wiring ─────────────────────────────────────────────── */
+
+    private void WireHub()
+    {
+        Hub.OnDisasterReported += OnDisasterReportedAsync;
+        Hub.OnTeamLocationUpdated += OnTeamLocationAsync;
+    }
+
+    private async Task OnDisasterReportedAsync(DisasterReportedEvent evt)
+    {
+        var item = new DisasterMapItem
+        {
+            Id = evt.ReferenceId,
+            Title = evt.Message,
+            Lat = evt.Latitude,
+            Lng = evt.Longitude,
+            Status = "Open",
+            Type = "Unknown",
+        };
+
+        _disasters.Insert(0, item);
+        _ = GetDisasterColor(item.Id); // assign colour
+
+        await JS.InvokeVoidAsync("DersLiveMap.addPin", new
+        {
+            id = item.Id.ToString(),
+            title = item.Title,
+            lat = item.Lat,
+            lng = item.Lng,
+            type = item.Type,
+            status = item.Status,
+            detailUrl = evt.Url,
+            teamsCount = 0,
+        });
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnTeamLocationAsync(TeamLocationEvent evt)
+    {
+        var id = evt.TeamId;
+        _teamPositions.TryGetValue(id, out var existing);
+
+        var pos = existing with
+        {
+            Lat = evt.Latitude,
+            Lng = evt.Longitude,
+        };
+        _teamPositions[id] = pos;
+
+        await PushTeamPinAsync(pos);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /* ── JS helpers ─────────────────────────────────────────────────── */
+
+    private async Task PushTeamPinAsync(TeamPosition pos)
+    {
+        await JS.InvokeVoidAsync("DersLiveMap.updateTeamPin", new
+        {
+            teamId = pos.TeamId.ToString(),
+            lat = pos.Lat,
+            lng = pos.Lng,
+            name = pos.Name,
+            speciality = pos.Speciality,
+            status = pos.Status,
+            disasterId = pos.DisasterId?.ToString(),
+        });
+    }
+
+    private async Task FlyToDisaster(DisasterMapItem d)
+    {
+        if (!_mapReady) return;
+        await JS.InvokeVoidAsync("DersLiveMap.flyTo", d.Id.ToString(), d.Lat, d.Lng);
+    }
+
+    private async Task ResetView()
+    {
+        if (!_mapReady) return;
+        await JS.InvokeVoidAsync("DersLiveMap.centre");
+    }
+
+    /* ── Color helper (mirrors JS palette) ─────────────────────────── */
+
+    private string GetDisasterColor(Guid id)
+    {
+        if (!_disasterColors.TryGetValue(id, out var c))
+        {
+            c = _palette[_paletteIdx % _palette.Length];
+            _paletteIdx++;
+            _disasterColors[id] = c;
+        }
+        return c;
+    }
+
+    private static bool IsResolved(string? status)
+    {
+        var s = (status ?? "").ToLowerInvariant();
+        return s is "resolved" or "closed";
+    }
+
+    /* ── Dispose ────────────────────────────────────────────────────── */
+
+    public async ValueTask DisposeAsync()
+    {
+        Hub.OnDisasterReported -= OnDisasterReportedAsync;
+        Hub.OnTeamLocationUpdated -= OnTeamLocationAsync;
+
+        if (_mapReady)
+            await JS.InvokeVoidAsync("DersLiveMap.destroy");
+    }
+
+    /* ── Inner types ────────────────────────────────────────────────── */
+
+    private class DisasterMapItem
+    {
+        public Guid Id { get; set; }
+        public string Title { get; set; } = "";
+        public double Lat { get; set; }
+        public double Lng { get; set; }
+        public string Type { get; set; } = "";
+        public string Status { get; set; } = "";
+        public string Province { get; set; } = "";
+        public string City { get; set; } = "";
+
+        // Adapt this to whatever shape GetDisastersForMapAsync() returns
+        public static DisasterMapItem From(dynamic d) => new()
+        {
+            Id = d.Id,
+            Title = d.Title ?? d.Name ?? "",
+            Lat = d.Latitude,
+            Lng = d.Longitude,
+            Type = d.Type ?? "",
+            Status = d.Status ?? "",
+            Province = d.Province ?? "",
+            City = d.City ?? "",
+        };
+    }
+
+    private record TeamPosition(
+        Guid TeamId,
+        double Lat,
+        double Lng,
+        string? Name,
+        string? Speciality,
+        string? Status,
+        Guid? DisasterId
+    );
+}

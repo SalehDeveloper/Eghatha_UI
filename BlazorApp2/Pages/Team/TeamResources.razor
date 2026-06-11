@@ -1,0 +1,178 @@
+﻿@page "/team/resources"
+@layout TeamLayout
+@using BlazorApp2.Services
+@using BlazorApp2.Responses
+@using BlazorApp2.Requests
+@inject ServiceApi Api
+
+<div class="tres-page">
+
+    <div class="tres-header">
+        <h1 class="tres-title">
+            <i class="fa-solid fa-box-open"></i>
+            Team Resources
+        </h1>
+      
+    </div>
+
+    @if (_toast is not null)
+    {
+        <div class="tres-toast tres-toast--@_toast.Type">
+            <i class="fa-solid @(_toast.Type == "success" ? "fa-circle-check" : "fa-circle-exclamation")"></i>
+            @_toast.Message
+        </div>
+    }
+
+    @if (_loading)
+    {
+        <div class="tres-loading"><span class="spinner"></span>Loading resources…</div>
+    }
+    else if (_error is not null)
+    {
+        <div class="tres-error"><i class="fa-solid fa-triangle-exclamation"></i>@_error</div>
+    }
+    else
+    {
+        <div class="tres-list-wrapper">
+            @if (!_resources.Any())
+            {
+                <div class="tres-empty">
+                    <i class="fa-solid fa-boxes-packing tres-empty-icon"></i>
+                    <div class="tres-empty-title">No resources yet</div>
+                    <div class="tres-empty-sub">Resources assigned to your team will appear here.</div>
+                </div>
+            }
+            else
+            {
+                <div class="tres-grid">
+                    @foreach (var r in _resources)
+                    {
+                        var res = r;
+                        <div class="tres-card">
+                            <div class="tres-card-top">
+                                <div class="tres-card-icon">
+                                    <i class="fa-solid fa-cubes"></i>
+                                </div>
+                                <div class="tres-card-meta">
+                                    <div class="tres-card-type">@res.Type</div>
+                                    <span class="tres-card-badge tres-badge--@res.Status.ToLower()">@res.Status</span>
+                                </div>
+                            </div>
+                            <div class="tres-card-qty">
+                                <span class="tres-qty-val">@res.Quantity</span>
+                                <span class="tres-qty-lbl">Available</span>
+                            </div>
+                            <div class="tres-card-consumable">
+                                @if (res.IsConsumable)
+                                {
+                                    <span class="tres-consumable-tag"><i class="fa-solid fa-fire-flame-curved"></i> Consumable</span>
+                                }
+                            </div>
+                         
+                        </div>
+                    }
+                </div>
+
+                @if (_totalPages > 1)
+                {
+                    <div class="tres-pagination">
+                        <button class="page-btn" disabled="@(_page == 1)"
+                                @onclick="() => LoadAsync(_page - 1)">
+                            ‹
+                        </button>
+                        <span class="pag-info">@_page / @_totalPages</span>
+                        <button class="page-btn" disabled="@(_page >= _totalPages)"
+                                @onclick="() => LoadAsync(_page + 1)">
+                            ›
+                        </button>
+                    </div>
+                }
+            }
+        </div>
+    }
+
+</div>
+
+<!-- ── Add Resource Modal ── -->
+
+
+
+@code {
+    private bool _loading = true;
+    private string? _error;
+    private bool _isLeader;
+    private Guid _teamId;
+    private List<TeamResourceResponse> _resources = new();
+    private int _page = 1;
+    private int _totalPages = 1;
+
+    // Toast
+    private ToastState? _toast;
+    private CancellationTokenSource? _toastCts;
+
+    // Add modal
+    private bool _showAddModal;
+    private bool _addBusy;
+    private string _addType = "";
+    private int _addQty = 1;
+    private bool _addConsumable = false;
+
+    // Qty modal
+    private TeamResourceResponse? _qtyTarget;
+    private bool _qtyIncrease;
+    private int _qtyAmount = 1;
+    private bool _qtyBusy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var me = await Api.GetCurrentTeamMemberInfoAsync();
+        if (!me.IsSuccess || me.Data is null)
+        {
+            _error = "Could not load your team information.";
+            _loading = false;
+            return;
+        }
+        _isLeader = me.Data.IsLeader;
+        _teamId = me.Data.TeamId;
+        await LoadAsync(1);
+    }
+
+    private async Task LoadAsync(int page)
+    {
+        _loading = true;
+        StateHasChanged();
+
+        var result = await Api.GetTeamResourcesAsync(_teamId, page, 12);
+        if (result.IsSuccess && result.Data is not null)
+        {
+            _resources = result.Data.Items;
+            _page = result.Data.Page;
+            _totalPages = result.Data.TotalPages;
+        }
+        else
+        {
+            _error = result.ErrorDetail ?? "Failed to load resources.";
+        }
+        _loading = false;
+        StateHasChanged();
+    }
+
+   
+
+    
+
+    private void ShowToast(string message, string type)
+    {
+        _toastCts?.Cancel();
+        _toastCts = new CancellationTokenSource();
+        _toast = new ToastState(message, type);
+        StateHasChanged();
+        var token = _toastCts.Token;
+        _ = Task.Delay(3500, token).ContinueWith(t =>
+        {
+            if (!t.IsCanceled) { _toast = null; InvokeAsync(StateHasChanged); }
+        }, TaskScheduler.Default);
+    }
+
+    private record ToastState(string Message, string Type);
+}

@@ -1,0 +1,291 @@
+﻿@page "/login"
+@layout EmptyLayout
+@using BlazorApp2.Requests
+@using BlazorApp2.Services
+@using Microsoft.AspNetCore.Components.Authorization;
+
+<div class="landscape">
+    <svg viewBox="0 0 1440 900" preserveAspectRatio="xMidYMax slice" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#e0f0ff" />
+                <stop offset="100%" stop-color="#c3d9f8" />
+            </linearGradient>
+        </defs>
+        <rect width="1440" height="900" fill="url(#sky)" />
+        <!-- Far mountains -->
+        <path d="M0,600 L80,420 L200,500 L340,320 L480,460 L600,280 L740,420 L880,300 L1020,440 L1160,320 L1300,460 L1440,360 L1440,900 L0,900Z" fill="#c8dcf5" opacity="0.6" />
+        <!-- Mid mountains -->
+        <path d="M0,680 L100,520 L260,600 L400,440 L540,560 L680,400 L820,520 L960,420 L1100,540 L1240,440 L1380,560 L1440,500 L1440,900 L0,900Z" fill="#b0caf0" opacity="0.7" />
+        <!-- Near hills -->
+        <path d="M0,760 L120,640 L280,700 L440,600 L600,680 L760,580 L920,660 L1080,580 L1240,660 L1400,600 L1440,620 L1440,900 L0,900Z" fill="#93b8e8" opacity="0.65" />
+        <!-- City silhouette -->
+        <g fill="#7aa5d8" opacity="0.5">
+            <rect x="580" y="690" width="18" height="80" />
+            <rect x="604" y="710" width="14" height="60" />
+            <rect x="624" y="680" width="22" height="90" />
+            <rect x="652" y="700" width="16" height="70" />
+            <rect x="674" y="660" width="30" height="110" />
+            <rect x="710" y="695" width="14" height="75" />
+            <rect x="730" y="715" width="12" height="55" />
+            <rect x="748" y="700" width="18" height="70" />
+            <rect x="680" y="652" width="6" height="10" />
+        </g>
+        <!-- River / winding path -->
+        <path d="M200,900 C300,800 350,750 420,720 C500,685 520,700 580,680 C640,660 680,700 700,900Z" fill="#a8c8ef" opacity="0.4" />
+        <path d="M180,900 C280,820 340,770 400,740 C470,705 510,715 560,700 C610,685 660,710 680,900Z" fill="#bdd5f2" opacity="0.35" />
+        <!-- Trees left -->
+        <g fill="#7aa5d8" opacity="0.6">
+            <polygon points="60,820 90,740 120,820" />
+            <polygon points="50,840 90,760 130,840" />
+            <polygon points="110,825 135,755 160,825" />
+            <polygon points="0,835 30,770 60,835" />
+        </g>
+        <!-- Trees right -->
+        <g fill="#7aa5d8" opacity="0.5">
+            <polygon points="1300,820 1330,745 1360,820" />
+            <polygon points="1350,835 1380,760 1410,835" />
+            <polygon points="1380,825 1410,755 1440,825" />
+        </g>
+        <!-- Birds -->
+        <g fill="none" stroke="#90afd6" stroke-width="1.5" stroke-linecap="round" opacity="0.5">
+            <path d="M260,320 Q268,314 276,320" />
+            <path d="M280,312 Q288,306 296,312" />
+            <path d="M310,330 Q318,324 326,330" />
+        </g>
+    </svg>
+</div>
+
+<div class="page">
+    <!-- LEFT -->
+    <div class="left-panel">
+        <!-- SVG Logo (shield with disaster icons) -->
+        <div class="logo-wrap">
+            <svg viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="shieldOuter" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#3b82f6" />
+                        <stop offset="100%" stop-color="#1d4ed8" />
+                    </linearGradient>
+                    <linearGradient id="shieldInner" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#93c5fd" />
+                        <stop offset="100%" stop-color="#bfdbfe" />
+                    </linearGradient>
+                    <linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#2563eb" />
+                        <stop offset="100%" stop-color="#3b82f6" />
+                    </linearGradient>
+                    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#1e40af" flood-opacity="0.4" />
+                    </filter>
+                </defs>
+
+                <!-- Shield outer -->
+                <path d="M110,12 L200,48 L200,120 C200,168 156,200 110,212 C64,200 20,168 20,120 L20,48 Z"
+                      fill="url(#shieldOuter)" filter="url(#shadow)" />
+                <!-- Shield inner -->
+                <path d="M110,26 L188,58 L188,120 C188,161 150,190 110,200 C70,190 32,161 32,120 L32,58 Z"
+                      fill="url(#shieldInner)" opacity="0.85" />
+
+                <!-- Cloud -->
+                <ellipse cx="95" cy="72" rx="22" ry="14" fill="#2563eb" />
+                <ellipse cx="114" cy="68" rx="18" ry="12" fill="#2563eb" />
+                <ellipse cx="80" cy="74" rx="14" ry="10" fill="#2563eb" />
+                <ellipse cx="110" cy="76" rx="28" ry="11" fill="#1e40af" />
+
+                <!-- Lightning bolt -->
+                <polygon points="108,68 100,86 109,86 101,105 118,82 108,82 116,68" fill="#fbbf24" />
+
+                <!-- Waves -->
+                <path d="M38,148 Q55,138 72,148 Q89,158 106,148 Q123,138 140,148 Q157,158 174,148 L174,168 Q157,158 140,168 Q123,178 106,168 Q89,158 72,168 Q55,178 38,168Z"
+                      fill="url(#waveGrad)" opacity="0.9" />
+                <path d="M38,162 Q55,152 72,162 Q89,172 106,162 Q123,152 140,162 Q157,172 174,162 L174,178 Q157,168 140,178 Q123,188 106,178 Q89,168 72,178 Q55,188 38,178Z"
+                      fill="#1d4ed8" opacity="0.75" />
+
+                <!-- House -->
+                <polygon points="110,95 80,118 140,118" fill="#1e3a8a" />
+                <rect x="86" y="118" width="48" height="32" fill="#1e40af" />
+                <rect x="100" y="128" width="20" height="22" fill="#3b82f6" />
+                <!-- House outline highlight -->
+                <line x1="86" y1="118" x2="86" y2="150" stroke="#60a5fa" stroke-width="1" />
+                <line x1="134" y1="118" x2="134" y2="150" stroke="#60a5fa" stroke-width="1" />
+
+                <!-- Flames (right) -->
+                <path d="M148,130 C148,116 158,112 156,100 C162,110 168,115 165,130 C163,140 152,143 148,130Z" fill="#f97316" />
+                <path d="M155,132 C155,122 162,119 161,110 C166,118 170,122 168,132 C166,140 157,142 155,132Z" fill="#fbbf24" />
+            </svg>
+        </div>
+
+        <div class="brand-name">Eghatha</div>
+        <div class="brand-sub">Disaster Management System</div>
+        <div class="divider-line"></div>
+        <div class="tagline">Prepare. Respond. Recover. Together.</div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="right-panel">
+        <div class="card">
+            <h1 class="card-title">Welcome Back</h1>
+            <p class="card-subtitle">Sign in to access your account and<br />manage disaster operations.</p>
+
+            <EditForm Model="@loginRequest" OnValidSubmit="@HandleLogin">
+                <DataAnnotationsValidator />
+
+                <div class="field">
+                    <label for="email">Email</label>
+                    <div class="input-wrap">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="4" width="20" height="16" rx="2" />
+                            <path d="M2,6 L12,13 L22,6" />
+                        </svg>
+
+                        <InputText id="email"
+                                   class="form-control"
+                                   @bind-Value="loginRequest.Email"
+                                   placeholder="Enter your email"
+                                   autocomplete="email" />
+                    </div>
+                    <ValidationMessage For="@(() => loginRequest.Email)" />
+                </div>
+
+         
+                <div class="field">
+                    <label for="password">Password</label>
+                    <div class="input-wrap">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="5" y="11" width="14" height="10" rx="2" />
+                            <path d="M8,11 V7 a4,4 0 0,1 8,0 V11" />
+                        </svg>
+
+                        <InputText id="password"
+                                   type="password"
+                                   class="form-control"
+                                   @bind-Value="loginRequest.Password"
+                                   placeholder="Enter your password"
+                                   autocomplete="current-password" />
+
+                        <button type="submit" class="eye-btn" aria-label="Toggle password">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1,12 C4,6 8,3 12,3 C16,3 20,6 23,12 C20,18 16,21 12,21 C8,21 4,18 1,12Z" />
+                                <circle cx="12" cy="12" r="3" />
+                            </svg>
+                        </button>
+                    </div>
+                    <ValidationMessage For="@(() => loginRequest.Password)" />
+                </div>
+                <button class="btn-login" type="submit">
+                    Login
+                </button>
+            </EditForm>
+            @if (errors)
+            {
+                <div class="error-banner">
+                    <svg width="18" height="18" viewBox="0 0 24 24">
+                        <path fill="currentColor"
+                              d="M12 2L1 21h22L12 2zm1 15h-2v2h2v-2zm0-8h-2v6h2V9z" />
+                    </svg>
+                    @foreach (var error in errorList)
+                    {
+                        <span>@error</span>
+                    }
+                </div>
+            }
+            <div class="options-row">
+                <label class="remember">
+                    <input type="checkbox" id="remember" />
+                    Remember me
+                </label>
+                <NavLink href="/forgot-password" class="forgot">
+                    Forgot password?
+                </NavLink>
+            </div>
+
+ 
+          
+ 
+        </div>
+    </div>
+</div>
+
+ 
+
+@code {
+
+    [Inject]
+    private Identity.IAccountManagement accountManagement { get; set; } = default!;
+    [Inject]
+    private NavigationManager navigationManager { get; set; } = default!;
+    [Inject]
+    private AuthenticationStateProvider authStateProvider { get; set; } = default!;
+
+    [Inject]
+    private ServiceApi serviceApi { get; set; } = default!;
+
+    private LoginRqeuest loginRequest = new();
+
+    private bool success, errors;
+    private string[] errorList = [];
+
+
+    private async Task HandleLogin()
+    {
+        success = errors = false;
+
+        success = errors = false;
+        errorList = [];
+
+
+        var result = await accountManagement.LoginAsync(loginRequest.Email, loginRequest.Password);
+
+        if (result.Succeeded)
+        {
+
+            success = true;
+            errors = false;
+
+            var authState = await authStateProvider.GetAuthenticationStateAsync();
+
+
+            var user = authState.User;
+
+            if (user.IsInRole("Admin"))
+            {
+                //navigate to admin dashboard
+                navigationManager.NavigateTo("admin/dashboard");
+            }
+
+            else if (user.IsInRole("Volunteer"))
+            {
+                //navigate to volunteer dashboard
+            }
+            else if (user.IsInRole("TeamMember"))
+            {
+                navigationManager.NavigateTo("team");
+
+                // chek if leader
+                // var member = await serviceApi.GetCurrentTeamMemberInfoAsync();
+
+                // if (member.Data.IsLeader)
+                // {
+                //     // navigate tp leader dash
+                // }
+                // else
+                // {
+                //     // navigat to member dash
+                // }
+
+            }
+
+        }
+        else
+        {
+            errors = true;
+            errorList = result.ErrorList;
+        }
+
+
+    }
+}

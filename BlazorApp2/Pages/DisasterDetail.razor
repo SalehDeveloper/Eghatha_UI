@@ -1,0 +1,784 @@
+﻿@page "/admin/disasters/{Id}"
+@layout AdminLayout
+@inject BlazorApp2.Services.ServiceApi ServiceApi
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@using BlazorApp2.Responses
+
+<!-- ── Back breadcrumb ── -->
+<div class="back-row">
+    <a href="/admin/disasters" class="btn btn-ghost btn-sm">
+        <i class="fa-solid fa-arrow-left"></i> All Disasters
+    </a>
+</div>
+
+@if (IsLoading)
+{
+    <div class="loading-state">
+        <span class="spinner spinner-lg"></span>
+        <span>Loading disaster details…</span>
+    </div>
+}
+else if (Detail is null)
+{
+    <div class="error-state">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <p>Disaster not found or failed to load.</p>
+        <a href="/admin/disasters" class="btn btn-ghost btn-sm">Go back</a>
+    </div>
+}
+else
+{
+    <!-- ── Page header ── -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">@Detail.Title</h1>
+            <p class="page-subtitle">
+                @Detail.Province, @Detail.City &nbsp;·&nbsp; @Detail.Type
+            </p>
+        </div>
+        <div class="action-row">
+            @if (Detail.Status != "Resolved" && Detail.Status != "Closed")
+            {
+                <button class="btn btn-primary" @onclick="OpenDispatch">
+                    <i class="fa-solid fa-paper-plane"></i> Dispatch Resources
+                </button>
+                
+            }
+          
+           
+                <a href="/admin/map?disasterId=@Detail.Id"
+                   class="btn btn-map">
+                    <i class="fa-solid fa-map-location-dot"></i>
+                    View on Map
+                </a>
+            
+        </div>
+    </div>
+
+
+    <!-- ── TABS ── -->
+    <div class="tabs-bar">
+        <button class="tab @(ActiveTab == "overview" ? "active" : "")" @onclick='() => ActiveTab = "overview"'>Overview</button>
+        <button class="tab @(ActiveTab == "teams" ? "active" : "")" @onclick='() => ActiveTab = "teams"'>Teams</button>
+        <button class="tab @(ActiveTab == "resources" ? "active" : "")" @onclick='() => ActiveTab = "resources"'>Resources</button>
+        <button class="tab @(ActiveTab == "affected" ? "active" : "")" @onclick='() => ActiveTab = "affected"'>Affected People</button>
+        <button class="tab @(ActiveTab == "timeline" ? "active" : "")" @onclick='() => ActiveTab = "timeline"'>Timeline</button>
+        <button class="tab @(ActiveTab == "report" ? "active" : "")"   @onclick='() => ActiveTab = "report"'> Report  </button>
+        @if (Detail.Latitude != 0 && Detail.Longitude != 0)
+        {
+            <button class="tab @(ActiveTab == "map" ? "active" : "")" @onclick="SwitchToMap">Map</button>
+        }
+    </div>
+
+    <!-- ══════════ OVERVIEW TAB ══════════ -->
+    @if (ActiveTab == "overview")
+    {
+        <div class="tab-panel">
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">Status</span>
+                    <span class="info-value">
+                        <span class="badge badge-@Detail.Status.ToLower()">@Detail.Status</span>
+                    </span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Type</span>
+                    <span class="info-value">@Detail.Type</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Province</span>
+                    <span class="info-value">@Detail.Province</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">City</span>
+                    <span class="info-value">@Detail.City</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Start Time</span>
+                    <span class="info-value font-mono">@Detail.StartTime.ToString("MMM dd yyyy, HH:mm")</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Reporter</span>
+                    <span class="info-value">@Detail.Reporter.Name</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Reporter Phone</span>
+                    <span class="info-value font-mono">@(Detail.Reporter.Phone ?? "—")</span>
+                </div>
+                @if (Detail.Latitude != 0 || Detail.Longitude != 0)
+                {
+                    <div class="info-item">
+                        <span class="info-label">Coordinates</span>
+                        <span class="info-value font-mono">
+                            @Detail.Latitude.ToString("F5"), @Detail.Longitude.ToString("F5")
+                        </span>
+                    </div>
+                }
+            </div>
+
+            <div class="detail-section">
+                <div class="detail-section-title">
+                    <i class="fa-solid fa-align-left"></i> Description
+                </div>
+                <p class="detail-desc">@Detail.Description</p>
+            </div>
+        </div>
+    }
+
+    <!-- ══════════ TEAMS TAB ══════════ -->
+    @if (ActiveTab == "teams")
+    {
+        <div class="tab-panel">
+             <div class="card">
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>TeamId</th>
+                                <th>Name</th>
+                             
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!Detail.Teams.Any())
+                            {
+                                <div class="empty-state">
+                                    <i class="fa-solid fa-people-group empty-state-icon"></i>
+                                    <div class="empty-state-title">No teams assigned yet</div>
+                                    <p class="empty-state-sub">Use "Dispatch Resources" to assign teams.</p>
+                                </div>
+                            }
+                            else
+                            {
+                                @foreach (var r in Detail.Teams)
+                                {
+                                    <tr>
+                                        <td>@r.TeamId</td>
+                                        <td class="font-mono">@r.TeamName</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- ══════════ RESOURCES TAB ══════════ -->
+    @if (ActiveTab == "resources")
+    {
+        <div class="tab-panel">
+            <div class="card">
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Resource Type</th>
+                                <th style="text-align:center">Sent</th>
+                                <th style="text-align:center">Consumed</th>
+                                <th style="text-align:center">Returned</th>
+                                <th style="text-align:center">Damaged</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!Detail.Resources.Any())
+                            {
+                                <tr>
+                                    <td colspan="5" class="table-empty">No resources dispatched</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var r in Detail.Resources)
+                                {
+                                    <tr>
+                                        <td>@r.ResourceType</td>
+                                        <td class="font-mono" style="text-align:center">@r.Sent</td>
+                                        <td class="font-mono" style="text-align:center">@r.Consumed</td>
+                                        <td class="font-mono" style="text-align:center">@r.Returned</td>
+                                        <td class="font-mono damaged-cell" style="text-align:center">@r.Damaged</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- ══════════ AFFECTED PEOPLE TAB ══════════ -->
+    @if (ActiveTab == "affected")
+    {
+        <div class="tab-panel">
+            <div class="card">
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Age</th>
+                                <th>Phone</th>
+                                <th>Status</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!Detail.AffectedPersons.Any())
+                            {
+                                <tr>
+                                    <td colspan="5" class="table-empty">No affected persons recorded</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var p in Detail.AffectedPersons)
+                                {
+                                    <tr>
+                                        <td>@p.Name</td>
+                                        <td class="font-mono">@p.Age</td>
+                                        <td class="font-mono">@p.Phone</td>
+                                        <td><span class="badge badge-@p.Status.ToLower()">@p.Status</span></td>
+                                        <td class="muted-cell">@p.Notes</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- ══════════ TIMELINE TAB ══════════ -->
+    @if (ActiveTab == "timeline")
+    {
+        <div class="tab-panel">
+            @if (!Timeline.Any())
+            {
+                <div class="empty-state">
+                    <i class="fa-solid fa-clock-rotate-left empty-state-icon"></i>
+                    <div class="empty-state-title">No timeline events yet</div>
+                </div>
+            }
+            else
+            {
+                <div class="timeline">
+                    @foreach (var ev in Timeline)
+                    {
+                        <div class="timeline-item">
+                            <div class="timeline-dot @GetDotClass(ev.EventType)"></div>
+
+                            <div class="timeline-time">
+                                @FormatDate(ev.OccurredAt) · @TimeAgo(ev.OccurredAt)
+                            </div>
+
+                            <div class="timeline-title">
+                                @FormatEventType(ev.EventType)
+                            </div>
+
+                            <div class="timeline-desc">
+                                @ev.Description
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    <!-- ══════════ MAP TAB ══════════ -->
+    @if (ActiveTab == "map")
+    {
+        <div class="tab-panel map-tab-panel">
+            <div id="detailMap" class="detail-map"></div>
+        </div>
+    }
+  
+    @if (ActiveTab == "report")
+    {
+        <div class="tab-panel">
+
+            @if (Detail.Report is null)
+            {
+                <div class="empty-state">
+                    <i class="fa-solid fa-file-circle-xmark empty-state-icon"></i>
+                    <div class="empty-state-title">No report available</div>
+                    <p class="empty-state-sub">A report has not been generated yet.</p>
+                </div>
+            }
+            else
+            {
+                <div class="card" style="padding: var(--sp-6)">
+
+                    <div class="info-grid" style="margin-bottom: var(--sp-5)">
+                        <div class="info-item">
+                            <span class="info-label">Issued At</span>
+                            <span class="info-value font-mono">
+                                @Detail.Report.IssuedAt.ToString("MMM dd yyyy, HH:mm")
+                            </span>
+                        </div>
+
+                        <div class="info-item">
+                            <span class="info-label">Report ID</span>
+                            <span class="info-value font-mono">
+                                @Detail.Report.Id
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="detail-section">
+                        <div class="detail-section-title">
+                            <i class="fa-solid fa-file-lines"></i> Summary
+                        </div>
+                        <p class="detail-desc">
+                            @Detail.Report.Summary
+                        </p>
+                    </div>
+
+                    <div class="action-row" style="margin-top: var(--sp-5)">
+
+                        <!-- View -->
+                        <a class="btn btn-primary"
+                           href="@Detail.Report.PdfUrl"
+                           target="_blank">
+                            <i class="fa-solid fa-eye"></i> View PDF
+                        </a>
+
+                      
+
+                    </div>
+
+                </div>
+            }
+
+        </div>
+    }
+
+    <!-- ══════════ DISPATCH MODAL ══════════ -->
+    <!-- ══════════ DISPATCH MODAL ══════════ -->
+    @if (ShowDispatch)
+    {
+        <div class="modal-overlay open">
+            <div class="modal large">
+
+                <!-- HEADER -->
+                <div class="modal-header">
+                    <div>
+                        <h2 class="modal-title">Dispatch Resources</h2>
+                        <p class="modal-subtitle">@Detail.Title</p>
+                    </div>
+                    <button class="modal-close" @onclick="CloseDispatch">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- BODY -->
+                <div class="modal-body">
+
+                    @if (!string.IsNullOrWhiteSpace(DispatchError))
+                    {
+                        <div class="dispatch-alert error">
+                            <i class="fa-solid fa-circle-exclamation"></i>
+                            <span>@DispatchError</span>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(DispatchSuccess))
+                    {
+                        <div class="dispatch-alert success">
+                            <i class="fa-solid fa-circle-check"></i>
+                            <span>@DispatchSuccess</span>
+                        </div>
+                    }
+
+                    <!-- Context strip -->
+                    <div class="dispatch-info-strip">
+                        <i class="fa-solid fa-fire"></i>
+                        <strong>@Detail.Title</strong>
+                        &nbsp;·&nbsp;
+                        @Detail.Province, @Detail.City
+                        &nbsp;·&nbsp;
+                        <span class="badge badge-@Detail.Status.ToLower()">@Detail.Status</span>
+                    </div>
+
+                    <!-- ===================== -->
+                    <!-- TEAMS                 -->
+                    <!-- ===================== -->
+                    <div class="dispatch-section-title">
+                        <i class="fa-solid fa-people-group"></i>
+                        Available Teams
+                    </div>
+
+                    @if (DispatchTeamsLoading)
+                    {
+                        <div class="table-loading">
+                            <span class="spinner"></span>
+                        </div>
+                    }
+                    else if (!AvailableTeams.Any())
+                    {
+                        <p class="muted-text">No teams available</p>
+                    }
+                    else
+                    {
+                        @foreach (var t in AvailableTeams)
+                        {
+                            <div class="dispatch-item @(SelectedTeamIds.Contains(t.TeamId) ? "selected" : "")"
+                                 @onclick="() => ToggleTeam(t.TeamId)">
+
+                                <input type="checkbox"
+                                       checked="@SelectedTeamIds.Contains(t.TeamId)"
+                                       @onclick:stopPropagation="true"
+                                       @onchange="() => ToggleTeam(t.TeamId)" />
+
+                                <div class="dispatch-item-info">
+                                    <div class="dispatch-item-name">
+                                        @t.TeamName
+                                        @if (t.IsLiveLocation)
+                                        {
+                                            <span class="ready-chip" style="margin-left:6px">✓ Live</span>
+                                        }
+                                    </div>
+                                    <div class="dispatch-item-sub">
+                                        @t.Speciality &nbsp;·&nbsp; @t.Province, @t.City
+                                        &nbsp;·&nbsp;
+                                        <i class="fa-solid fa-route" style="font-size:10px"></i>
+                                        @t.DistanceKm.ToString("F1") km
+                                        &nbsp;·&nbsp;
+                                        <i class="fa-solid fa-clock" style="font-size:10px"></i>
+                                        @t.DurationMinutes.ToString("F0") min
+                                        &nbsp;·&nbsp;
+                                        Score: <strong>@t.Score.ToString("F1")</strong>
+                                    </div>
+                                </div>
+
+                            </div>
+                        }
+                    }
+
+                    <!-- ===================== -->
+                    <!-- VOLUNTEERS            -->
+                    <!-- ===================== -->
+                    <div class="dispatch-section-title" style="margin-top: 20px;">
+                        <i class="fa-solid fa-hand-holding-heart"></i>
+                        Available Volunteers
+                    </div>
+
+                    @if (VolunteersLoading)
+                    {
+                        <div class="table-loading">
+                            <span class="spinner"></span>
+                        </div>
+                    }
+                    else if (!AvailableVolunteers.Any())
+                    {
+                        <p class="muted-text">No volunteers available</p>
+                    }
+                    else
+                    {
+                        @foreach (var v in AvailableVolunteers)
+                        {
+                            <div class="dispatch-item @(SelectedVolunteerIds.Contains(v.VolunteerId) ? "selected" : "")"
+                                 @onclick="() => ToggleVolunteer(v.VolunteerId)">
+
+                                <input type="checkbox"
+                                       checked="@SelectedVolunteerIds.Contains(v.VolunteerId)"
+                                       @onclick:stopPropagation="true"
+                                       @onchange="() => ToggleVolunteer(v.VolunteerId)" />
+
+                                <div class="dispatch-item-info">
+                                    <div class="dispatch-item-name">@v.Speciality</div>
+                                    <div class="dispatch-item-sub">
+                                        <i class="fa-solid fa-route" style="font-size:10px"></i>
+                                        @v.DistanceKm.ToString("F1") km
+                                        &nbsp;·&nbsp;
+                                        <i class="fa-solid fa-clock" style="font-size:10px"></i>
+                                        @v.DurationMinutes.ToString("F0") min
+                                        &nbsp;·&nbsp;
+                                        Score: <strong>@v.Score.ToString("F1")</strong>
+                                    </div>
+                                </div>
+
+                            </div>
+                        }
+                    }
+
+                </div>
+
+                <!-- FOOTER -->
+                <div class="modal-footer">
+                    <button class="btn btn-ghost" @onclick="CloseDispatch">
+                        Cancel
+                    </button>
+                    <button class="btn btn-primary"
+                            @onclick="ConfirmDispatch"
+                            disabled="@IsDispatching">
+                        @if (IsDispatching)
+                        {
+                            <span class="spinner"></span>
+                        }
+                        else
+                        {
+                            <i class="fa-solid fa-paper-plane"></i>
+                        }
+                        Dispatch (@(SelectedTeamIds.Count + SelectedVolunteerIds.Count))
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+
+    // ── State ─────────────────────────────────────────────────────
+    private bool IsLoading = true;
+    private bool IsActing = false;
+    private string ActionError = "";
+    private string ActiveTab = "overview";
+    private DisasterDetailResponse? Detail;
+
+    private List<DisasterTimelineEvent?> Timeline=new();
+
+
+
+
+    // Dispatch modal
+    private bool ShowDispatch = false;
+    private bool IsDispatching = false;
+    private bool DispatchTeamsLoading = false;
+    private string DispatchError = "";
+    private string DispatchSuccess = "";
+    private List<RecommendedTeamsResponse> AvailableTeams = new();
+    private HashSet<Guid> SelectedTeamIds = new();
+
+    private List<RecommendedVolunteerResponse> AvailableVolunteers = new();
+    private HashSet<Guid> SelectedVolunteerIds = new();
+    private bool VolunteersLoading = false;
+
+
+    // ── Lifecycle ─────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Guid.TryParse(Id, out var guid))
+        {
+            IsLoading = false;
+            return;
+        }
+
+        var result = await ServiceApi.GetDisasterByIdAsync(guid);
+        var timeline = await ServiceApi.GetDisasterTimelineAsync(guid);
+
+        if (result.IsSuccess)
+        {
+            Detail = result.Data;
+            Timeline = timeline.Data.Items;
+
+        }
+
+        IsLoading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (ActiveTab == "map" && Detail is not null &&
+            (Detail.Latitude != 0 || Detail.Longitude != 0))
+        {
+            await InitDetailMapAsync();
+        }
+    }
+
+    // ── Build flat view models from API response ───────────────────
+
+
+    // ── Tab switching ──────────────────────────────────────────────
+    private async Task SwitchToMap()
+    {
+        ActiveTab = "map";
+        StateHasChanged();
+        // Small delay so the div renders before Leaflet tries to use it
+        await Task.Delay(80);
+        await InitDetailMapAsync();
+    }
+
+    // ── Map (Leaflet via JS interop) ───────────────────────────────
+    private bool _mapInitialised = false;
+
+    private async Task InitDetailMapAsync()
+    {
+        if (_mapInitialised || Detail is null) return;
+        if (Detail.Latitude == 0 && Detail.Longitude == 0) return;
+
+        _mapInitialised = true;
+        try
+        {
+            await JS.InvokeVoidAsync("DersDetailMap.init",
+                "detailMap",
+                Detail.Latitude,
+                Detail.Longitude,
+                Detail.Title,
+                Detail.Status);
+        }
+        catch (JSException ex)
+        {
+            Console.WriteLine($"[DisasterDetail] Map JS error: {ex.Message}");
+        }
+    }
+
+    // ── Actions ────────────────────────────────────────────────────
+
+
+
+
+    // ── Dispatch modal ─────────────────────────────────────────────
+    private async Task OpenDispatch()
+    {
+        ShowDispatch = true;
+
+        DispatchTeamsLoading = true;
+        VolunteersLoading = true;
+
+        DispatchError = "";
+        DispatchSuccess = ""; 
+
+        SelectedTeamIds = new();
+        SelectedVolunteerIds = new();
+
+        var teamsTask =  ServiceApi.GetRecommendedTeams(Detail.Id);
+        var volunteersTask = ServiceApi.GetRecommendedVolunteers(Detail.Id);
+
+        await Task.WhenAll(teamsTask, volunteersTask);
+
+        var teamsResult = teamsTask.Result;
+        var volResult = volunteersTask.Result;
+
+        if (teamsResult.IsSuccess)
+            AvailableTeams = teamsResult.Data;
+
+        if (volResult.IsSuccess)
+            AvailableVolunteers = volResult.Data;
+
+        DispatchTeamsLoading = false;
+        VolunteersLoading = false;
+
+
+    }
+
+    private void CloseDispatch()
+    {
+        ShowDispatch = false;
+        DispatchError = "";
+    }
+
+    private void ToggleTeam(Guid id)
+    {
+        if (!SelectedTeamIds.Remove(id))
+            SelectedTeamIds.Add(id);
+    }
+
+    private void ToggleVolunteer(Guid id)
+    {
+        if (!SelectedVolunteerIds.Remove(id))
+            SelectedVolunteerIds.Add(id);
+    }
+
+    private async Task ConfirmDispatch()
+    {
+        if (!SelectedTeamIds.Any() && !SelectedVolunteerIds.Any())
+        {
+            DispatchError = "Select at least one team or volunteer.";
+            return;
+        }
+
+        IsDispatching = true;
+        DispatchError = "";
+
+        var disasterGuid = Guid.Parse(Id);
+
+        var tasks = new List<Task<Services.ApiResult<string>>>();
+
+        if (SelectedTeamIds.Any())
+        {
+
+
+            tasks.Add(ServiceApi.DispatchTeamsAsync(disasterGuid,new Requests.DispathTeamsRequest
+            {
+                TeamIds = SelectedTeamIds.ToList()
+            }));
+        }
+
+
+        if (SelectedVolunteerIds.Any())
+        {
+            tasks.Add(ServiceApi.DispatchVolunteersAsync(disasterGuid, new Requests.DispathVolunteersRequest
+            {
+                VolunteerIds = SelectedVolunteerIds.ToList()
+            }));
+        }
+       
+
+    var results = await Task.WhenAll(tasks);
+
+    var failed = results.Where(r => !r.IsSuccess).ToList();
+
+    if (!failed.Any())
+    {
+        ShowDispatch = false;
+
+        var refreshed = await ServiceApi.GetDisasterByIdAsync(disasterGuid);
+        if (refreshed.IsSuccess)
+            Detail = refreshed.Data;
+
+       DispatchSuccess = "Resources dispatched successfully.";
+    }
+    else
+    {
+        DispatchError = failed.First().ErrorDetail;
+    }
+
+    IsDispatching = false;
+}
+
+    private string FormatEventType(string type)
+    {
+        if (string.IsNullOrWhiteSpace(type)) return "";
+        return System.Text.RegularExpressions.Regex
+            .Replace(type, "([A-Z])", " $1")
+            .Trim();
+    }
+
+    private string GetDotClass(string eventType)
+    {
+        return eventType switch
+        {
+            "ReportCreated" => "critical",
+            "TeamsAssigned" => "info",
+            "TeamsArrived" => "success",
+            "MissionCompleted" => "success",
+            "ResourceDispatched" => "info",
+            "VolunteerAssigned" => "info",
+            "Resolved" => "success",
+            "Closed" => "",
+            _ => ""
+        };
+    }
+
+    private string FormatDate(DateTime dt)
+    => dt.ToString("MMM dd yyyy, HH:mm");
+
+    private string TimeAgo(DateTime dt)
+    {
+        var span = DateTime.UtcNow - dt.ToUniversalTime();
+
+        if (span.TotalMinutes < 1) return "just now";
+        if (span.TotalHours < 1) return $"{(int)span.TotalMinutes}m ago";
+        if (span.TotalDays < 1) return $"{(int)span.TotalHours}h ago";
+        return $"{(int)span.TotalDays}d ago";
+    }
+}

@@ -1,0 +1,377 @@
+﻿@page "/admin/disasters"
+@layout AdminLayout
+@inject BlazorApp2.Services.ServiceApi ServiceApi
+@using BlazorApp2.Responses
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Disasters</h1>
+        <p class="page-subtitle">All reported incidents and emergency events</p>
+    </div>
+    
+</div>
+
+<!-- ═══ FILTER BAR ═══ -->
+<div class="card">
+    <div class="filter-bar">
+        <div class="search-input-wrap">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input class="filter-search"
+                   placeholder="Filter by province…"
+                   @bind="FilterProvince"
+                   @bind:event="oninput"
+                   @bind:after="OnFilterChanged" />
+        </div>
+
+        <select class="filter-select" @bind="FilterType" @bind:after="OnFilterChanged">
+            <option value="">All Types</option>
+            @foreach (var t in DisasterTypes)
+            {
+                <option value="@t.Name">@t.Name</option>
+            }
+        </select>
+
+        <select class="filter-select" @bind="FilterStatus" @bind:after="OnFilterChanged">
+            <option value="">All Statuses</option>
+            @foreach (var s in DisasterStatuses)
+            {
+                <option value="@s.Name">@s.Name</option>
+            }
+        </select>
+
+        <input type="date" class="filter-select"
+               @bind="FilterFrom" @bind:after="OnFilterChanged" />
+
+        <input type="date" class="filter-select"
+               @bind="FilterTo" @bind:after="OnFilterChanged" />
+    </div>
+
+    <!-- ═══ TABLE ═══ -->
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Disaster</th>
+                    <th>Province</th>
+                    <th>City</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Start Time</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (IsLoading)
+                {
+                    <tr>
+                        <td colspan="7" class="table-loading">
+                            <span class="spinner"></span> Loading…
+                        </td>
+                    </tr>
+                }
+                else if (!Items.Any())
+                {
+                    <tr>
+                        <td colspan="7" class="table-empty">No disasters found</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var d in Items)
+                    {
+                        <tr>
+                            <td>
+                                <div class="user-cell">
+                                    <span class="user-avatar-sm disaster-avatar">
+                                        <i class="fa-solid fa-fire"></i>
+                                    </span>
+                                    <div>
+                                        <div class="user-cell-name">@d.Title</div>
+                                        <div class="user-cell-sub font-mono">@d.Id.ToString()[..8]…</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>@d.Province</td>
+                            <td>@d.City</td>
+                            <td>@d.Type</td>
+                            <td><span class="badge badge-@d.Status.ToLower()">@d.Status</span></td>
+                            <td class="font-mono time-cell">@d.StartTime.ToString("MMM dd yyyy, HH:mm")</td>
+                            <td>
+                                <div class="action-btns">
+                                    <a href="/admin/disasters/@d.Id" class="btn btn-xs btn-ghost" title="View details">
+                                        <i class="fa-solid fa-eye"></i> Details
+                                    </a>
+                                    @if (d.Latitude != 0 && d.Longitude != 0)
+                                    {
+                                        <a href="/admin/map?disasterId=@d.Id"
+                                           class="btn btn-xs btn-ghost"
+                                           title="View on map">
+                                            <i class="fa-solid fa-map-pin"></i>
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-xs btn-ghost" disabled title="No coordinates">
+                                            <i class="fa-solid fa-map-pin"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ═══ PAGINATION ═══ -->
+    @if (TotalPages > 1)
+    {
+        <div class="pagination">
+            <span class="pag-info">
+                @PagFrom–@PagTo of @TotalCount
+            </span>
+
+            <button class="page-btn" disabled="@(CurrentPage == 1)"
+                    @onclick="() => GoToPage(CurrentPage - 1)">‹</button>
+
+            @foreach (var p in PageNumbers)
+            {
+                @if (p == -1)
+                {
+                    <span class="page-btn" style="pointer-events:none">…</span>
+                }
+                else
+                {
+                    <button class="page-btn @(p == CurrentPage ? "active" : "")"
+                            @onclick="() => GoToPage(p)">@p</button>
+                }
+            }
+
+            <button class="page-btn" disabled="@(CurrentPage == TotalPages)"
+                    @onclick="() => GoToPage(CurrentPage + 1)">›</button>
+        </div>
+    }
+
+</div>
+
+<!-- ═══ CREATE DISASTER MODAL ═══ -->
+@if (ShowCreateModal)
+{
+    <div class="modal-overlay open">
+        <div class="modal large">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title">Report Disaster</h2>
+                    <p class="modal-subtitle">Fill all required fields</p>
+                </div>
+                <button class="modal-close" @onclick="CloseCreateModal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-grid two-col">
+                    <div class="form-group">
+                        <label class="form-label">Title *</label>
+                        <input class="form-input" placeholder="Brief title…" @bind="CreateModel.Title" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Type *</label>
+                        <select class="form-input" @bind="CreateModel.Type">
+                            <option value="">Select type…</option>
+                            @foreach (var t in DisasterTypes)
+                            {
+                                <option value="@t.Name">@t.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group full-col">
+                        <label class="form-label">Description *</label>
+                        <textarea class="form-input" rows="3"
+                                  placeholder="Detailed description…"
+                                  @bind="CreateModel.Description"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Reporter Name *</label>
+                        <input class="form-input" placeholder="Full name…" @bind="CreateModel.ReporterName" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Reporter Phone *</label>
+                        <input class="form-input" placeholder="+963…" @bind="CreateModel.ReporterPhone" />
+                    </div>
+                    <div class="form-group full-col">
+                        <label class="form-label">Reporter National ID *</label>
+                        <input class="form-input" @bind="CreateModel.ReporterNationalId" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Latitude *</label>
+                        <input class="form-input font-mono" type="number" step="any"
+                               @bind="CreateModel.Latitude" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Longitude *</label>
+                        <input class="form-input font-mono" type="number" step="any"
+                               @bind="CreateModel.Longitude" />
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(CreateError))
+                {
+                    <div class="api-error" style="margin-top: 1rem">
+                        <i class="fa-solid fa-circle-exclamation"></i> @CreateError
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" @onclick="CloseCreateModal">Cancel</button>
+                <button class="btn btn-primary" @onclick="SubmitCreateDisaster" disabled="@IsCreating">
+                    @if (IsCreating)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-plus"></i>
+                    }
+                    Create
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+
+    // ── Filter state ────────────────────────────────────────────────
+    private string FilterProvince = "";
+    private string FilterType     = "";
+    private string FilterStatus   = "";
+    private DateTime? FilterFrom;
+    private DateTime? FilterTo;
+
+    // ── Pagination state ────────────────────────────────────────────
+    private const int PageSize = 10;
+    private int CurrentPage = 1;
+    private int TotalCount  = 0;
+    private int TotalPages  => (int)Math.Ceiling((double)TotalCount / PageSize);
+    private int PagFrom     => TotalCount == 0 ? 0 : (CurrentPage - 1) * PageSize + 1;
+    private int PagTo       => Math.Min(CurrentPage * PageSize, TotalCount);
+
+    // Page numbers to show (same window logic as pagination.js)
+    private IEnumerable<int> PageNumbers
+    {
+        get
+        {
+            int start = Math.Max(1, CurrentPage - 2);
+            int end   = Math.Min(TotalPages, start + 4);
+            var pages = Enumerable.Range(start, end - start + 1).Select(p => p).ToList();
+            if (end < TotalPages)
+            {
+                pages.Add(-1);         // -1 = ellipsis sentinel
+                pages.Add(TotalPages);
+            }
+            return pages;
+        }
+    }
+
+    // ── Data ────────────────────────────────────────────────────────
+    private bool IsLoading = true;
+    private List<DisasterResponse> Items = new();
+    private List<ReferenceItem>    DisasterTypes    = new();
+    private List<ReferenceItem>    DisasterStatuses = new();
+
+    // ── Create modal ────────────────────────────────────────────────
+    private bool ShowCreateModal = false;
+    private bool IsCreating      = false;
+    private string CreateError   = "";
+    private BlazorApp2.Requests.CreateDisasterRequest CreateModel = new();
+
+    // ── Lifecycle ───────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        // Load reference data for filter dropdowns
+        await Task.WhenAll(LoadRefDataAsync(), LoadDisastersAsync());
+    }
+
+    // ── Data loaders ────────────────────────────────────────────────
+    private async Task LoadRefDataAsync()
+    {
+        var typesResult   = await ServiceApi.GetDisasterTypesAsync();
+        var statusesResult = await ServiceApi.GetDisasterStatusesAsync();
+        if (typesResult.IsSuccess)    DisasterTypes    = typesResult.Data;
+        if (statusesResult.IsSuccess) DisasterStatuses = statusesResult.Data;
+    }
+
+    private async Task LoadDisastersAsync()
+    {
+        IsLoading = true;
+        StateHasChanged();
+
+        var result = await ServiceApi.GetDisastersAsync(
+            province: string.IsNullOrEmpty(FilterProvince) ? null : FilterProvince,
+            type:     string.IsNullOrEmpty(FilterType)     ? null : FilterType,
+            status:   string.IsNullOrEmpty(FilterStatus)   ? null : FilterStatus,
+            from:     FilterFrom,
+            to:       FilterTo,
+            page:     CurrentPage,
+            pageSize: PageSize
+        );
+
+        if (result.IsSuccess)
+        {
+            Items      = result.Data.Items;
+            TotalCount = result.Data.TotalCount;
+        }
+
+        IsLoading = false;
+    }
+
+    // ── Filter handler (debounce not needed — Blazor re-renders on change)
+    private async Task OnFilterChanged()
+    {
+        CurrentPage = 1;
+        await LoadDisastersAsync();
+    }
+
+    private async Task GoToPage(int page)
+    {
+        if (page < 1 || page > TotalPages) return;
+        CurrentPage = page;
+        await LoadDisastersAsync();
+    }
+
+    // ── Create modal ────────────────────────────────────────────────
+    private void OpenCreateModal()
+    {
+        CreateModel = new();
+        CreateError = "";
+        ShowCreateModal = true;
+    }
+
+    private void CloseCreateModal()
+    {
+        ShowCreateModal = false;
+        CreateError     = "";
+    }
+
+    private async Task SubmitCreateDisaster()
+    {
+        CreateError = "";
+        IsCreating  = true;
+
+        var result = await ServiceApi.CreateDisasterAsync(CreateModel);
+
+        if (result.IsSuccess)
+        {
+            ShowCreateModal = false;
+            CurrentPage = 1;
+            await LoadDisastersAsync();
+        }
+        else
+        {
+            CreateError = result.ErrorDetail;
+        }
+
+        IsCreating = false;
+    }
+}

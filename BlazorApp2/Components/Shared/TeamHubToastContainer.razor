@@ -1,0 +1,131 @@
+﻿@* Place inside TeamLayout.razor just before the closing root </div> *@
+
+@using BlazorApp2.Services
+@inject TeamHubService Hub
+@inject NavigationManager Nav
+@inject NotificationState NotifState
+@implements IDisposable
+
+@if (_toasts.Count > 0)
+{
+    <div class="hub-toast-stack">
+        @foreach (var t in _toasts)
+        {
+            var toast = t;
+            <div class="hub-toast hub-toast--@toast.Color @(toast.Leaving ? "hub-toast--out" : "")"
+                 @onclick="() => ClickToast(toast)">
+
+                <div class="hub-toast-icon">
+                    <i class="fa-solid @toast.Icon"></i>
+                </div>
+
+                <div class="hub-toast-body">
+                    <div class="hub-toast-title">@toast.Title</div>
+                    <div class="hub-toast-msg">@toast.Message</div>
+                </div>
+
+                <button class="hub-toast-close" @onclick:stopPropagation="true"
+                        @onclick="() => DismissToast(toast)">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<ActiveToast> _toasts = new();
+
+    protected override void OnInitialized()
+    {
+        Console.WriteLine("[TeamHubToastContainer] ✅ Initialized — subscribing to team events");
+        Hub.OnTeamAssignedToDisaster += HandleTeamAssigned;
+    }
+
+    // ── Event handler ──────────────────────────────────────────────────────
+
+    private Task HandleTeamAssigned(TeamAssignedEvent e)
+    {
+        ShowToast(new ActiveToast(
+            Title: "Disaster Assigned",
+            Message: $"{e.Title} — {e.City}",
+            Icon: "fa-fire",
+            Color: "critical",
+            NavigateTo: $"/team/disasters/{e.ReferenceId}"
+        ));
+
+        // Bump the unread badge in the notification icon
+        NotifState.SetUnreadCount(NotifState.UnreadCount + 1);
+
+        return Task.CompletedTask;
+    }
+
+    // ── Toast lifecycle ────────────────────────────────────────────────────
+
+    private void ShowToast(ActiveToast toast)
+    {
+        InvokeAsync(async () =>
+        {
+            _toasts.Add(toast);
+            StateHasChanged();
+
+            await Task.Delay(5700);
+            toast.Leaving = true;
+            StateHasChanged();
+
+            await Task.Delay(300);
+            _toasts.Remove(toast);
+            StateHasChanged();
+        });
+    }
+
+    private void ClickToast(ActiveToast toast)
+    {
+        _toasts.Remove(toast);
+        NotifState.Decrement();
+        NotifState.SetRecent(new());
+        StateHasChanged();
+        Nav.NavigateTo(toast.NavigateTo);
+    }
+
+    private void DismissToast(ActiveToast toast)
+    {
+        InvokeAsync(async () =>
+        {
+            toast.Leaving = true;
+            StateHasChanged();
+            await Task.Delay(300);
+            _toasts.Remove(toast);
+            StateHasChanged();
+        });
+    }
+
+    // ── Cleanup ────────────────────────────────────────────────────────────
+
+    public void Dispose()
+    {
+        Hub.OnTeamAssignedToDisaster -= HandleTeamAssigned;
+    }
+
+    // ── Model ──────────────────────────────────────────────────────────────
+
+    private class ActiveToast
+    {
+        public string Title { get; }
+        public string Message { get; }
+        public string Icon { get; }
+        public string Color { get; }
+        public string NavigateTo { get; }
+        public bool Leaving { get; set; }
+
+        public ActiveToast(string Title, string Message, string Icon, string Color, string NavigateTo)
+        {
+            this.Title = Title;
+            this.Message = Message;
+            this.Icon = Icon;
+            this.Color = Color;
+            this.NavigateTo = NavigateTo;
+        }
+    }
+}

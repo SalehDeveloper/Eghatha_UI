@@ -1,0 +1,257 @@
+﻿@page "/team/notifications"
+@layout TeamLayout
+@using BlazorApp2.Services
+@using BlazorApp2.Responses
+@inject ServiceApi Api
+@inject NavigationManager Nav
+@inject NotificationState NotifState
+
+<div class="notif-page">
+
+    <!-- ── Header ── -->
+    <div class="notif-page-header">
+        <div class="notif-page-header-left">
+            <h1 class="notif-page-title">
+                <i class="fa-solid fa-bell"></i>
+                Notifications
+            </h1>
+            @if (NotifState.UnreadCount > 0)
+            {
+                <span class="notif-page-badge">@NotifState.UnreadCount unread</span>
+            }
+        </div>
+        <button class="btn-mark-all"
+                @onclick="MarkAllReadAsync"
+                disabled="@(_markingAll || NotifState.UnreadCount == 0)">
+            @if (_markingAll)
+            {
+                <span class="spinner spinner-sm"></span>
+            }
+            else
+            {
+                <i class="fa-solid fa-check-double"></i>
+            }
+            <span>Mark all as read</span>
+        </button>
+    </div>
+
+    <!-- ── Toast ── -->
+    @if (_toast is not null)
+    {
+        <div class="notif-toast notif-toast--@_toast.Type">
+            <i class="fa-solid @(_toast.Type == "success" ? "fa-circle-check" : "fa-circle-exclamation")"></i>
+            @_toast.Message
+        </div>
+    }
+
+    <!-- ── List ── -->
+    <div class="notif-list-wrapper">
+        @if (_loading)
+        {
+            <div class="notif-loading">
+                <span class="spinner"></span>
+                <span>Loading notifications…</span>
+            </div>
+        }
+        else if (_error is not null)
+        {
+            <div class="notif-error">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                @_error
+            </div>
+        }
+        else if (!_items.Any())
+        {
+            <div class="notif-empty-state">
+                <i class="fa-solid fa-bell-slash notif-empty-icon"></i>
+                <div class="notif-empty-title">No notifications</div>
+                <div class="notif-empty-sub">You're all caught up!</div>
+            </div>
+        }
+        else
+        {
+            @foreach (var n in _items)
+            {
+                var notif = n;
+                <div class="notif-item @(notif.IsRead ? "" : "notif-item--unread")"
+                     @onclick="() => HandleItemClickAsync(notif)">
+
+                    <div class="notif-item-icon notif-item-icon--@TypeClass(notif.Type)">
+                        <i class="fa-solid @TypeIcon(notif.Type)"></i>
+                    </div>
+
+                    <div class="notif-item-body">
+                        <div class="notif-item-title">@notif.Title</div>
+                        <div class="notif-item-msg">@notif.Message</div>
+                        <div class="notif-item-meta">
+                            <span>@FormatDateTime(notif.CreatedAt)</span>
+                            <span class="notif-item-sep">·</span>
+                            <span>@TimeAgo(notif.CreatedAt)</span>
+                        </div>
+                    </div>
+
+                    <div class="notif-item-aside">
+                        @if (!notif.IsRead)
+                        {
+                            <span class="notif-dot"></span>
+                        }
+                        @if (_markingId == notif.Id)
+                        {
+                            <span class="spinner spinner-sm"></span>
+                        }
+                    </div>
+                </div>
+            }
+
+            <!-- Pagination -->
+            @if (_totalPages > 1)
+            {
+                <div class="pagination">
+                    <span class="pag-info">@_page / @_totalPages</span>
+                    <button class="page-btn" disabled="@(_page == 1)"
+                            @onclick="() => LoadAsync(_page - 1)">
+                        ‹
+                    </button>
+                    @for (int p = Math.Max(1, _page - 2); p <= Math.Min(_totalPages, _page + 2); p++)
+                    {
+                        var pg = p;
+                        <button class="page-btn @(pg == _page ? "active" : "")"
+                                @onclick="() => LoadAsync(pg)">
+                            @pg
+                        </button>
+                    }
+                    <button class="page-btn" disabled="@(_page >= _totalPages)"
+                            @onclick="() => LoadAsync(_page + 1)">
+                        ›
+                    </button>
+                </div>
+            }
+        }
+    </div>
+
+</div>
+
+@code {
+    private bool _loading = true;
+    private string? _error;
+    private List<NotificationResponse> _items = new();
+    private int _page = 1;
+    private int _totalPages = 1;
+    private bool _markingAll;
+    private Guid? _markingId;
+    private ToastState? _toast;
+    private CancellationTokenSource? _toastCts;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync(1);
+
+    private async Task LoadAsync(int page)
+    {
+        _loading = true;
+        StateHasChanged();
+
+        var result = await Api.GetNotificationsAsync(page, 15);
+        if (result.IsSuccess && result.Data is not null)
+        {
+            _items = result.Data.Items;
+            _page = result.Data.Page;
+            _totalPages = result.Data.TotalPages;
+
+            // Refresh unread count badge
+            var cnt = await Api.GetUnreadCountAsync();
+            if (cnt.IsSuccess) NotifState.SetUnreadCount(cnt.Data);
+        }
+        else
+        {
+            _error = result.ErrorDetail ?? "Failed to load notifications.";
+        }
+
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private async Task HandleItemClickAsync(NotificationResponse n)
+    {
+        if (!n.IsRead)
+        {
+            _markingId = n.Id;
+            StateHasChanged();
+
+            var result = await Api.MarkNotificationReadAsync(n.Id);
+            if (result.IsSuccess)
+            {
+                n.IsRead = true;
+                NotifState.Decrement();
+            }
+
+            _markingId = null;
+            StateHasChanged();
+        }
+
+        if (!string.IsNullOrEmpty(n.Url))
+            Nav.NavigateTo(n.Url);
+    }
+
+    private async Task MarkAllReadAsync()
+    {
+        _markingAll = true;
+        StateHasChanged();
+
+        var result = await Api.MarkAllNotificationsReadAsync();
+        if (result.IsSuccess)
+        {
+            foreach (var n in _items) n.IsRead = true;
+            NotifState.ClearUnread();
+            ShowToast("All notifications marked as read.", "success");
+        }
+        else
+        {
+            ShowToast(result.ErrorDetail ?? "Failed to mark all as read.", "error");
+        }
+
+        _markingAll = false;
+        StateHasChanged();
+    }
+
+    private void ShowToast(string message, string type)
+    {
+        _toastCts?.Cancel();
+        _toastCts = new CancellationTokenSource();
+        _toast = new ToastState(message, type);
+        StateHasChanged();
+        var token = _toastCts.Token;
+        _ = Task.Delay(3500, token).ContinueWith(t =>
+        {
+            if (!t.IsCanceled) { _toast = null; InvokeAsync(StateHasChanged); }
+        }, TaskScheduler.Default);
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────
+    private static string TypeClass(int type) => type switch
+    {
+        1 => "disaster",
+        2 => "volunteer",
+        3 => "team",
+        _ => "info"
+    };
+
+    private static string TypeIcon(int type) => type switch
+    {
+        1 => "fa-fire",
+        2 => "fa-hands-helping",
+        3 => "fa-people-group",
+        _ => "fa-circle-info"
+    };
+
+    private static string FormatDateTime(DateTime dt) => dt.ToString("MMM d, yyyy · h:mm tt");
+
+    private static string TimeAgo(DateTime dt)
+    {
+        var diff = DateTime.UtcNow - dt.ToUniversalTime();
+        if (diff.TotalMinutes < 1) return "just now";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
+        return $"{(int)diff.TotalDays}d ago";
+    }
+
+    private record ToastState(string Message, string Type);
+}

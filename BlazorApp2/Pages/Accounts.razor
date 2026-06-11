@@ -1,0 +1,376 @@
+﻿@page "/admin/accounts"
+@layout AdminLayout
+@inject BlazorApp2.Services.ServiceApi ServiceApi
+@using BlazorApp2.Responses
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Accounts</h1>
+        <p class="page-subtitle">User management and access control</p>
+    </div>
+  
+</div>
+<!-- ═══ STATS GRID ═══ -->
+<div class="stats-grid">
+    <div class="stat-card critical">
+        <div class="stat-card-header">
+            <span class="stat-label">Total Accounts</span>
+            <span class="stat-icon"><i class="fa-solid fa-fire"></i></span>
+        </div>
+        <div class="stat-value">@AccountStatisticsResponse.TotalUsers</div>
+        <div class="stat-trend">Open incidents</div>
+    </div>
+    <div class="stat-card warning">
+        <div class="stat-card-header">
+            <span class="stat-label">InActive Users</span>
+            <span class="stat-icon"><i class="fa-solid fa-clock"></i></span>
+        </div>
+        <div class="stat-value">@AccountStatisticsResponse.InActiveUsers</div>
+        
+    </div>
+    <div class="stat-card success">
+        <div class="stat-card-header">
+            <span class="stat-label">Active Users</span>
+            <span class="stat-icon"><i class="fa-solid fa-users"></i></span>
+        </div>
+        <div class="stat-value">@AccountStatisticsResponse.ActiveUsers</div>
+        
+    </div>
+    <div class="stat-card info">
+        <div class="stat-card-header">
+            <span class="stat-label">Administrators</span>
+            <span class="stat-icon"><i class="fa-solid fa-user-shield"></i></span>
+        </div>
+        <div class="stat-value">@AccountStatisticsResponse.TotalAdmins</div>
+      
+    </div>
+</div>
+
+<!-- ═══ FILTER BAR ═══ -->
+<div class="card">
+    <div class="filter-bar">
+        <div class="search-input-wrap">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input class="filter-search"
+                   placeholder="Filter by Email,Name…"
+                   @bind="SearchTerm"
+                   @bind:event="oninput"
+                   @bind:after="OnFilterChanged" />
+        </div>
+
+        <select class="filter-select" @bind="FilterRole" @bind:after="OnFilterChanged">
+            <option value="">All Roles</option>
+            @foreach (var r in Roles)
+            {
+                <option value="@r">@r</option>
+            }
+        </select>
+
+        <select class="filter-select" @bind="FilterStatus" @bind:after="OnFilterChanged">
+            <option value="">All Statuses</option>
+            @foreach (var s in Statuses)
+            {
+                <option value="@s">@s</option>
+            }
+        </select>
+    </div>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                @if (IsLoading)
+                {
+                    <tr>
+                        <td colspan="6" class="table-loading">
+                            <span class="spinner"></span> Loading…
+                        </td>
+                    </tr>
+                }
+                else if (!Items.Any())
+                {
+                    <tr>
+                        <td colspan="6" class="table-empty">No Accounts found</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var a in Items)
+                    {
+                        <tr>
+                            <!-- USER -->
+                            <td>
+                                <div class="user-cell">
+                                    <span class="user-avatar">
+                                        @if (!string.IsNullOrWhiteSpace(a.PhotoUrl))
+                                        {
+                                            <img src="@a.PhotoUrl" alt="@a.FullName" />
+                                        }
+                                        else
+                                        {
+                                            <i class="fa-solid fa-user"></i>
+                                        }
+                                    </span>
+
+                                    <div>
+                                        <div class="user-cell-name">@a.FullName</div>
+
+                                    </div>
+                                </div>
+                            </td>
+
+                            <!-- EMAIL -->
+                            <td>@a.Email</td>
+
+                            <!-- PHONE -->
+                            <td>@a.PhoneNumber</td>
+
+                            <!-- ROLES -->
+                            <td>
+                                @{
+                                    var role = a.Roles.FirstOrDefault() ?? "No Role";
+                                }
+
+                                <span class="role-badge role-@role.ToLower()">
+                                    @role
+                                </span>
+                            </td>
+
+                            <!-- STATUS -->
+                            <td>
+                                <span class="badge @(a.IsActive ? "badge-active" : "badge-inactive")">
+                                    @(a.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </td>
+
+                            <!-- ACTIONS -->
+                            <td>
+                                <div class="action-btns">
+
+                               
+
+                                    @if (a.IsActive)
+                                    {
+                                        <button class="btn btn-xs btn-ghost"
+                                                title="Deactivate account"
+                                                @onclick="() => ConfirmDeactivate(a)">
+                                            <i class="fa-solid fa-user-xmark"></i>
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-xs btn-ghost"
+                                                title="Activate account"
+                                                @onclick="() => ConfirmActivate(a)">
+                                            <i class="fa-solid fa-user-plus"></i>
+                                        </button>
+                                    }
+
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+    <!-- ═══ PAGINATION ═══ -->
+    @if (TotalPages > 1)
+    {
+        <div class="pagination">
+            <span class="pag-info">
+                @PagFrom–@PagTo of @TotalCount
+            </span>
+
+            <button class="page-btn" disabled="@(CurrentPage == 1)"
+                    @onclick="() => GoToPage(CurrentPage - 1)">
+                ‹
+            </button>
+
+            @foreach (var p in PageNumbers)
+            {
+                @if (p == -1)
+                {
+                    <span class="page-btn" style="pointer-events:none">…</span>
+                }
+                else
+                {
+                    <button class="page-btn @(p == CurrentPage ? "active" : "")"
+                            @onclick="() => GoToPage(p)">
+                        @p
+                    </button>
+                }
+            }
+
+            <button class="page-btn" disabled="@(CurrentPage == TotalPages)"
+                    @onclick="() => GoToPage(CurrentPage + 1)">
+                ›
+            </button>
+        </div>
+    }
+
+</div>
+
+
+
+
+@code {
+    private List<AccountResponse> Items{ get; set;} = new() ;
+    private AccountStatisticsResponse AccountStatisticsResponse { get; set; }=new();
+
+    private List<string> Roles { get; set; } = new() { "Admin", "TeamMember" , "Volunteer" };
+    private List<string> Statuses { get; set; } = new() { "Active", "InActive"};
+
+    private string SearchTerm = "";
+    private string FilterRole = "";
+    private string FilterStatus = "";
+
+    private bool IsLoading = true;
+
+    private AccountResponse? SelectedAccount;
+    private bool ShowActivateModal;
+    private bool ShowDeactivateModal;
+
+    private const int PageSize = 10;
+    private int CurrentPage = 1;
+    private int TotalCount = 0;
+    private int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
+    private int PagFrom => TotalCount == 0 ? 0 : (CurrentPage - 1) * PageSize + 1;
+    private int PagTo => Math.Min(CurrentPage * PageSize, TotalCount);
+
+    private IEnumerable<int> PageNumbers
+    {
+        get
+        {
+            int start = Math.Max(1, CurrentPage - 2);
+            int end = Math.Min(TotalPages, start + 4);
+            var pages = Enumerable.Range(start, end - start + 1).Select(p => p).ToList();
+            if (end < TotalPages)
+            {
+                pages.Add(-1);         // -1 = ellipsis sentinel
+                pages.Add(TotalPages);
+            }
+            return pages;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(GetAccountStatisticsAsync(), LoadAccountssAsync());
+    }
+
+    private async Task LoadAccountssAsync()
+    {
+        IsLoading = true;
+        StateHasChanged();
+
+        var Active = FilterStatus switch
+        {
+            "Active" => true,
+            "InActive" => false,
+            _ => (bool?)null
+        };
+        var result = await ServiceApi.GetAccountsAsync(
+            searchTerm: string.IsNullOrEmpty(SearchTerm) ? null : SearchTerm,
+            role: string.IsNullOrEmpty(FilterRole) ? null : FilterRole,
+            isActive: string.IsNullOrEmpty(FilterStatus) ? null : Active,
+            page: CurrentPage,
+            pageSize: PageSize
+        );
+
+        if (result.IsSuccess)
+        {
+            Items = result.Data.Items;
+            TotalCount = result.Data.TotalCount;
+
+            foreach (var a in Items)
+            {
+                Console.WriteLine($"EMAIL: {a.Email}");
+
+                Console.WriteLine("ROLES RAW:");
+                Console.WriteLine(a.Roles == null
+                    ? "NULL"
+                    : string.Join(",", a.Roles));
+            }
+        }
+
+        IsLoading = false;
+    }
+
+    private async Task GetAccountStatisticsAsync()
+    {
+        var result = await ServiceApi.GetAccountStatisticsAsync();
+
+        if (result.IsSuccess)
+            AccountStatisticsResponse = result.Data;
+
+    }
+    private void ActivateAccount(AccountResponse account)
+    {
+        SelectedAccount = account;
+        ShowActivateModal = true;
+    }
+
+    private void DeactivateAccount(AccountResponse account)
+    {
+        SelectedAccount = account;
+        ShowDeactivateModal = true;
+    }
+
+    private async Task ConfirmActivate(AccountResponse account)
+    {
+        ActivateAccount(account);
+
+        if (SelectedAccount is null)
+            return;
+
+        var result =
+            await ServiceApi.ActivateAccountAsync(
+                SelectedAccount.Id);
+
+        if (result.IsSuccess)
+        {
+            await LoadAccountssAsync();
+            ShowActivateModal = false;
+        }
+    }
+    private async Task ConfirmDeactivate(AccountResponse account)
+    {
+        DeactivateAccount(account);
+
+        if (SelectedAccount is null)
+            return;
+
+        var result =
+            await ServiceApi.DeactivateAccountAsync(
+                SelectedAccount.Id);
+
+        if (result.IsSuccess)
+        {
+            await LoadAccountssAsync();
+            ShowDeactivateModal = false;
+        }
+    }
+
+    private async Task OnFilterChanged()
+    {
+        CurrentPage = 1;
+        await LoadAccountssAsync();
+    }
+
+    private async Task GoToPage(int page)
+    {
+        if (page < 1 || page > TotalPages) return;
+        CurrentPage = page;
+        await LoadAccountssAsync();
+    }
+}

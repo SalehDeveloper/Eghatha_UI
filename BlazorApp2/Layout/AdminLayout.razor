@@ -1,0 +1,361 @@
+﻿@inherits LayoutComponentBase
+@inject NavigationManager Navigation
+@inject BlazorApp2.Services.ServiceApi ServiceApi
+@inject IJSRuntime JS
+@inject BlazorApp2.Services.AdminHubService HubService
+@implements IAsyncDisposable
+@using Microsoft.AspNetCore.SignalR.Client
+@using BlazorApp2.Components.Shared
+
+<div class="sidebar @(IsCollapsed ? "collapsed" : "")" id="sidebar">
+
+    <div class="sidebar-header">
+        <div class="logo">
+            <div class="logo-icon"><i class="fa-solid fa-shield-halved"></i></div>
+            <div class="logo-text">
+                <span class="logo-title">DERS</span>
+                <span class="logo-sub">Syria Response</span>
+            </div>
+        </div>
+        <button class="sidebar-toggle" @onclick="ToggleSidebar">
+            <i class="fa-solid fa-bars"></i>
+        </button>
+    </div>
+
+    <nav class="sidebar-nav">
+        <div class="nav-section-label">Core</div>
+        <NavLink class="nav-item" href="/admin/dashboard" Match="NavLinkMatch.All">
+            <i class="fa-solid fa-gauge-high"></i><span>Dashboard</span>
+        </NavLink>
+        <NavLink class="nav-item" href="/admin/disasters">
+            <i class="fa-solid fa-fire"></i><span>Disasters</span>
+        </NavLink>
+        <NavLink class="nav-item" href="/admin/map">
+            <i class="fa-solid fa-map-location-dot"></i>
+            <span>Live Map</span>
+            <span class="nav-badge live">LIVE</span>
+        </NavLink>
+
+        <div class="nav-section-label">Management</div>
+        <NavLink class="nav-item" href="/admin/accounts">
+            <i class="fa-solid fa-users"></i><span>Accounts</span>
+        </NavLink>
+        <NavLink class="nav-item" href="/admin/teams">
+            <i class="fa-solid fa-people-group"></i><span>Teams</span>
+        </NavLink>
+        <NavLink class="nav-item" href="/admin/volunteers">
+            <i class="fa-solid fa-hand-holding-heart"></i><span>Volunteers</span>
+        </NavLink>
+
+        <div class="nav-section-label">System</div>
+        <NavLink class="nav-item" href="/admin/notifications">
+            <i class="fa-solid fa-bell"></i><span>Notifications</span>
+        </NavLink>
+       
+    </nav>
+
+    <div class="sidebar-footer">
+        <div class="user-card">
+            <div class="user-avatar">
+                <img src="@AccountResponse.PhotoUrl" alt="Profile" />
+            </div>
+            <div class="user-info">
+                <span class="user-name">Admin</span>
+                <span class="user-role">@AccountResponse.FullName</span>
+            </div>
+            <button class="btn-icon" @onclick="Logout" title="Logout">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="main-wrapper @(IsCollapsed ? "sidebar-collapsed" : "")">
+    <header class="topbar">
+        <div class="topbar-left">
+            <button class="btn-icon mobile-menu-btn" @onclick="ToggleSidebar">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+            <div class="breadcrumb">@GetPageTitle()</div>
+        </div>
+        <div class="topbar-right">
+
+            <!-- ── SignalR connection status ── -->
+            <div class="connection-status">
+                <span class="status-dot @ConnectionStatusClass"></span>
+                <span class="status-label">@ConnectionStatusLabel</span>
+            </div>
+
+            <!-- ── Notification Bell + Dropdown ── -->
+            <div class="notif-bell-wrap" id="notif-bell-wrap">
+                <button class="btn-icon notif-bell-btn" @onclick="ToggleBell" title="Notifications">
+                    <i class="fa-solid fa-bell"></i>
+                    @if (NotifState.UnreadCount > 0)
+                    {
+                        <span class="notif-bell-badge">
+                            @(NotifState.UnreadCount > 99 ? "99+" : NotifState.UnreadCount)
+                        </span>
+                    }
+                </button>
+
+                @if (NotifState.DropdownOpen)
+                {
+                    <div class="notif-dropdown">
+                        <div class="notif-dropdown-header">
+                            <span>Notifications</span>
+                            <a href="/admin/notifications" @onclick="NotifState.CloseDropdown"
+                               @onclick:preventDefault="false">
+                                View all
+                            </a>
+                        </div>
+
+                        @if (_dropdownLoading)
+                        {
+                            <div class="notif-dropdown-loading">
+                                <span class="spinner spinner-sm"></span>
+                            </div>
+                        }
+                        else if (!NotifState.Recent.Any())
+                        {
+                            <div class="notif-dropdown-empty">No new notifications</div>
+                        }
+                        else
+                        {
+                            @foreach (var n in NotifState.Recent)
+                            {
+                                var item = n;
+                                <div class="notif-dropdown-item @(item.IsRead ? "" : "unread")"
+                                     @onclick="() => HandleDropdownClick(item)">
+                                    <div class="notif-dropdown-icon notif-item-icon--@TypeClass(item.Type)">
+                                        <i class="fa-solid @TypeIcon(item.Type)"></i>
+                                    </div>
+                                    <div class="notif-dropdown-body">
+                                        <div class="notif-dropdown-title">@item.Title</div>
+                                        <div class="notif-dropdown-msg">@item.Message</div>
+                                        <div class="notif-dropdown-time">@TimeAgo(item.CreatedAt)</div>
+                                    </div>
+                                    @if (!item.IsRead)
+                                    {
+                                        <span class="notif-dot"></span>
+                                    }
+                                </div>
+                            }
+                        }
+
+                        <div class="notif-dropdown-footer">
+                            <a href="/admin/notifications" @onclick="NotifState.CloseDropdown">
+                                See all notifications
+                            </a>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <button class="btn-icon" @onclick="ToggleTheme"
+                    title="@(IsDark ? "Switch to light mode" : "Switch to dark mode")">
+                <i class="fa-solid @(IsDark ? "fa-sun" : "fa-moon")"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="page-content">
+        @Body
+    </main>
+</div>
+
+<!-- ── Real-time toast stack (bottom-right, outside main wrapper) ── -->
+<Hubtoastcontainer />
+
+@code {
+    [Inject]
+    public BlazorApp2.Services.NotificationState NotifState { get; set; } = default!;
+
+    private bool IsCollapsed = false;
+    private bool IsDark = true;
+    private bool _dropdownLoading = false;
+    private Responses.AccountResponse AccountResponse { get; set; } = new();
+
+    // ── Connection status ─────────────────────────────────────────
+    private string ConnectionStatusClass => HubService.ConnectionState switch
+    {
+        HubConnectionState.Connected    => "connected",
+        HubConnectionState.Connecting   => "connecting",
+        HubConnectionState.Reconnecting => "connecting",
+        _                               => "disconnected"
+    };
+
+    private string ConnectionStatusLabel => HubService.ConnectionState switch
+    {
+        HubConnectionState.Connected    => "Live",
+        HubConnectionState.Connecting   => "Connecting…",
+        HubConnectionState.Reconnecting => "Reconnecting…",
+        _                               => "Offline"
+    };
+
+    // ── Lifecycle ─────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        NotifState.OnChange += StateHasChanged;
+
+        // Subscribe to hub events — handlers use InvokeAsync to stay on UI thread
+        HubService.OnVolunteerRegistered += HandleVolunteerRegistered;
+        HubService.OnDisasterReported    += HandleDisasterReported;
+
+        var accountTask = ServiceApi.GetMyAccount();
+        var countTask   = ServiceApi.GetUnreadCountAsync();
+        await Task.WhenAll(accountTask, countTask);
+
+        if (accountTask.Result.IsSuccess)
+            AccountResponse = accountTask.Result.Data;
+
+        if (countTask.Result.IsSuccess)
+            NotifState.SetUnreadCount(countTask.Result.Data);
+
+        // Start the hub — guarded internally so safe to call multiple times
+        await HubService.StartAsync();
+
+        // After ~1s, re-render so the connection status dot reflects reality
+        _ = Task.Delay(1500).ContinueWith(_ => InvokeAsync(StateHasChanged));
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var saved = await JS.InvokeAsync<string>("DersTheme.getSaved");
+            IsDark = saved != "light";
+            StateHasChanged();
+        }
+    }
+
+    // ── Hub handlers — MUST use InvokeAsync (fire on SignalR thread) ──
+    private Task HandleVolunteerRegistered(BlazorApp2.Services.VolunteerRegisteredEvent _)
+    {
+        return InvokeAsync(() =>
+        {
+            NotifState.SetUnreadCount(NotifState.UnreadCount + 1);
+            NotifState.SetRecent(new()); // invalidate dropdown cache
+        });
+    }
+
+    private Task HandleDisasterReported(BlazorApp2.Services.DisasterReportedEvent _)
+    {
+        return InvokeAsync(() =>
+        {
+            NotifState.SetUnreadCount(NotifState.UnreadCount + 1);
+            NotifState.SetRecent(new()); // invalidate dropdown cache
+        });
+    }
+
+    // ── Bell ──────────────────────────────────────────────────────
+    private async Task ToggleBell()
+    {
+        NotifState.ToggleDropdown();
+
+        if (NotifState.DropdownOpen && !NotifState.Recent.Any())
+        {
+            _dropdownLoading = true;
+            StateHasChanged();
+
+            var result = await ServiceApi.GetNotificationsAsync(1, 5);
+            if (result.IsSuccess && result.Data is not null)
+            {
+                var items = (result.Data.Items ?? Enumerable.Empty<Responses.NotificationResponse>())
+                    .Select(n => new BlazorApp2.Services.NotificationDropdownItem
+                    {
+                        Id        = n.Id,
+                        Title     = n.Title,
+                        Message   = n.Message,
+                        Url       = n.Url,
+                        IsRead    = n.IsRead,
+                        CreatedAt = n.CreatedAt,
+                        Type      = n.Type
+                    }).ToList();
+
+                NotifState.SetRecent(items);
+            }
+
+            _dropdownLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleDropdownClick(BlazorApp2.Services.NotificationDropdownItem n)
+    {
+        NotifState.CloseDropdown();
+
+        if (!n.IsRead)
+        {
+            var res = await ServiceApi.MarkNotificationReadAsync(n.Id);
+            if (res.IsSuccess)
+            {
+                n.IsRead = true;
+                NotifState.Decrement();
+                NotifState.SetRecent(NotifState.Recent);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(n.Url))
+            Navigation.NavigateTo($"/admin{n.Url}");
+    }
+
+    // ── Dispose ───────────────────────────────────────────────────
+    public async ValueTask DisposeAsync()
+    {
+        NotifState.OnChange              -= StateHasChanged;
+        HubService.OnVolunteerRegistered -= HandleVolunteerRegistered;
+        HubService.OnDisasterReported    -= HandleDisasterReported;
+        await HubService.StopAsync();
+    }
+
+    // ── UI helpers ────────────────────────────────────────────────
+    private void ToggleSidebar() => IsCollapsed = !IsCollapsed;
+
+    private async Task ToggleTheme()
+    {
+        IsDark = !IsDark;
+        await JS.InvokeVoidAsync("DersTheme.apply", IsDark ? "dark" : "light");
+    }
+
+    private void Logout() => Navigation.NavigateTo("/login");
+
+    private string GetPageTitle()
+    {
+        var path = Navigation.Uri;
+        if (path.Contains("/dashboard"))               return "Dashboard";
+        if (path.Contains("/disasters/"))              return "Disaster Detail";
+        if (path.Contains("/disasters"))               return "Disasters";
+        if (path.Contains("/map"))                     return "Live Map";
+        if (path.Contains("/accounts"))                return "Accounts";
+        if (path.Contains("/teams"))                   return "Teams";
+        if (path.Contains("/volunteer-registrations")) return "Registration Detail";
+        if (path.Contains("/volunteers"))              return "Volunteers";
+        if (path.Contains("/notifications"))           return "Notifications";
+        if (path.Contains("/settings"))                return "Settings";
+        return "DERS";
+    }
+
+    private static string TypeClass(int type) => type switch
+    {
+        0 => "disaster",
+        1 => "volunteer",
+        2 => "team",
+        _ => "info"
+    };
+
+    private static string TypeIcon(int type) => type switch
+    {
+        0 => "fa-fire",
+        1 => "fa-hand-holding-heart",
+        2 => "fa-people-group",
+        _ => "fa-circle-info"
+    };
+
+    private static string TimeAgo(DateTime dt)
+    {
+        var diff = DateTime.UtcNow - dt.ToUniversalTime();
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours   < 24) return $"{(int)diff.TotalHours}h ago";
+        return $"{(int)diff.TotalDays}d ago";
+    }
+}

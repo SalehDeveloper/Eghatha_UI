@@ -1,0 +1,176 @@
+﻿@page "/team"
+@layout TeamLayout
+@using BlazorApp2.Services
+@using BlazorApp2.Responses
+@inject ServiceApi Api
+@inject NavigationManager Nav
+
+<div class="tdash-page">
+
+    <div class="tdash-header">
+        <h1 class="tdash-title">
+            <i class="fa-solid fa-house"></i>
+            Dashboard
+        </h1>
+        <span class="tdash-role-badge @(_isLeader ? "tdash-role-badge--leader" : "")">
+            <i class="fa-solid @(_isLeader ? "fa-star" : "fa-user")"></i>
+            @(_isLeader ? "Team Leader" : "Team Member")
+        </span>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="tdash-loading">
+            <span class="spinner"></span>
+            <span>Loading dashboard…</span>
+        </div>
+    }
+    else if (_error is not null)
+    {
+        <div class="tdash-error">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            @_error
+        </div>
+    }
+    else
+    {
+        <!-- ── Summary cards ── -->
+        <div class="tdash-cards">
+            <div class="tdash-card">
+                <div class="tdash-card-icon tdash-card-icon--team">
+                    <i class="fa-solid fa-people-group"></i>
+                </div>
+                <div class="tdash-card-body">
+                    <div class="tdash-card-label">Team Status</div>
+                    <div class="tdash-card-value">@(_teamInfo?.Status ?? "—")</div>
+                </div>
+            </div>
+
+            <div class="tdash-card">
+                <div class="tdash-card-icon tdash-card-icon--members">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+                <div class="tdash-card-body">
+                    <div class="tdash-card-label">Active Members</div>
+                    <div class="tdash-card-value">@(_teamInfo?.ActiveMembersCount ?? 0) / @(_teamInfo?.MembersCount ?? 0)</div>
+                </div>
+            </div>
+
+            <div class="tdash-card">
+                <div class="tdash-card-icon tdash-card-icon--resources">
+                    <i class="fa-solid fa-box-open"></i>
+                </div>
+                <div class="tdash-card-body">
+                    <div class="tdash-card-label">Resources</div>
+                    <div class="tdash-card-value">@_resourceCount items</div>
+                </div>
+            </div>
+
+            @if (_assignedDisaster is not null)
+            {
+                <div class="tdash-card tdash-card--alert" @onclick='() => Nav.NavigateTo($"/team/disasters/{_assignedDisaster.DisasterId}")'>
+                    <div class="tdash-card-icon tdash-card-icon--disaster">
+                        <i class="fa-solid fa-fire"></i>
+                    </div>
+                    <div class="tdash-card-body">
+                        <div class="tdash-card-label">Active Disaster</div>
+                        <div class="tdash-card-value tdash-card-value--sm">@_assignedDisaster.Title</div>
+                        <div class="tdash-card-sub">@_assignedDisaster.City, @_assignedDisaster.Province</div>
+                    </div>
+                    <i class="fa-solid fa-chevron-right tdash-card-arrow"></i>
+                </div>
+            }
+            else
+            {
+                <div class="tdash-card">
+                    <div class="tdash-card-icon tdash-card-icon--idle">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                    <div class="tdash-card-body">
+                        <div class="tdash-card-label">Active Disaster</div>
+                        <div class="tdash-card-value" style="color:var(--color-success)">No active mission</div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- ── Quick links ── -->
+        <div class="tdash-quick-links">
+            <h2 class="tdash-section-title">Quick Links</h2>
+            <div class="tdash-links-grid">
+                @if (_assignedDisaster is not null)
+                {
+                    <a class="tdash-link" href="/team/disaster">
+                        <i class="fa-solid fa-fire"></i>
+                        <span>Disaster Details</span>
+                    </a>
+                }
+                <a class="tdash-link" href="/team/info">
+                    <i class="fa-solid fa-people-group"></i>
+                    <span>Team Info</span>
+                </a>
+                <a class="tdash-link" href="/team/resources">
+                    <i class="fa-solid fa-box-open"></i>
+                    <span>Resources</span>
+                </a>
+                @if (_isLeader)
+                {
+                    <a class="tdash-link" href="/team/notifications">
+                        <i class="fa-solid fa-bell"></i>
+                        <span>Notifications</span>
+                    </a>
+                }
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    private bool _loading = true;
+    private string? _error;
+    private bool _isLeader;
+    private TeamResponse? _teamInfo;
+    private TeamDisasterResponse? _assignedDisaster;
+    private int _resourceCount;
+    private Guid _teamId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var meResult = await Api.GetCurrentTeamMemberInfoAsync();
+        if (!meResult.IsSuccess || meResult.Data is null)
+        {
+            _error = "Could not load your team information.";
+            _loading = false;
+            return;
+        }
+
+        _isLeader = meResult.Data.IsLeader;
+        _teamId = meResult.Data.TeamId;
+
+        // Load team details and assigned disaster in parallel
+        var teamTask = Api.GetTeamByIdAsync(_teamId);
+        var disasterTask = Api.GetTeamDisasters(_teamId, 1, 1);
+        var resourceTask = Api.GetTeamResourcesAsync(_teamId, 1, 1);
+
+        await Task.WhenAll(teamTask, disasterTask, resourceTask);
+
+        var teamResult = await teamTask;
+        if (teamResult.IsSuccess) _teamInfo = teamResult.Data;
+
+        var disasterResult = await disasterTask;
+        if (disasterResult.IsSuccess && disasterResult.Data?.Items.Count > 0)
+        {
+            var latest = disasterResult.Data.Items.First();
+            // Only show if active (not closed)
+            if (latest.Status != "Closed")
+                _assignedDisaster = latest;
+        }
+
+        var resResult = await resourceTask;
+        if (resResult.IsSuccess)
+            _resourceCount = resResult.Data?.TotalCount ?? 0;
+
+        _loading = false;
+    }
+}

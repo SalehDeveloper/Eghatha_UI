@@ -1,0 +1,1311 @@
+﻿@page "/team/disaster"
+@page "/team/disasters/{DisasterId}"
+@layout TeamLayout
+@using BlazorApp2.Services
+@using BlazorApp2.Responses
+@using BlazorApp2.Requests
+@inject ServiceApi Api
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div class="tdd-page">
+
+    <!-- ── Page header ── -->
+    <div class="tdd-header">
+        <h1 class="tdd-title">
+            <i class="fa-solid fa-fire"></i>
+            Disaster Details
+        </h1>
+        @if (_disaster is not null)
+        {
+            <span class="tdd-status-badge tdd-status--@_disaster.Status.ToLower()">
+                @_disaster.Status
+            </span>
+        }
+    </div>
+
+    @if (_toast is not null)
+    {
+        <div class="tdd-toast tdd-toast--@_toast.Type">
+            <i class="fa-solid @(_toast.Type == "success" ? "fa-circle-check" : "fa-circle-exclamation")"></i>
+            @_toast.Message
+        </div>
+    }
+
+    @if (_loading)
+    {
+        <div class="tdd-loading"><span class="spinner"></span>Loading disaster details…</div>
+    }
+    else if (_error is not null)
+    {
+        <div class="tdd-error"><i class="fa-solid fa-triangle-exclamation"></i>@_error</div>
+    }
+    else if (_disaster is null)
+    {
+        <div class="tdd-empty">
+            <i class="fa-solid fa-circle-info tdd-empty-icon"></i>
+            <div class="tdd-empty-title">No active disaster</div>
+            <div class="tdd-empty-sub">Your team has not been assigned to any disaster yet.</div>
+        </div>
+    }
+    else
+    {
+        @* ════ DISASTER INFO ════ *@
+        <div class="tdd-info-card">
+            <div class="tdd-info-grid">
+                <div class="tdd-info-item">
+                    <div class="tdd-info-label">Title</div>
+                    <div class="tdd-info-value">@_disaster.Title</div>
+                </div>
+                <div class="tdd-info-item">
+                    <div class="tdd-info-label">Type</div>
+                    <div class="tdd-info-value">@_disaster.Type</div>
+                </div>
+                <div class="tdd-info-item">
+                    <div class="tdd-info-label">Location</div>
+                    <div class="tdd-info-value">@_disaster.City, @_disaster.Province</div>
+                </div>
+                <div class="tdd-info-item">
+                    <div class="tdd-info-label">Started</div>
+                    <div class="tdd-info-value">@_disaster.StartTime.ToString("MMM d, yyyy · h:mm tt")</div>
+                </div>
+                @if (!string.IsNullOrEmpty(_disasterDetail?.Description))
+                {
+                    <div class="tdd-info-item tdd-info-item--full">
+                        <div class="tdd-info-label">Description</div>
+                        <div class="tdd-info-value">@_disasterDetail!.Description</div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @* ════ LEADER-ONLY ACTION BUTTONS ════
+             Team members can see this page but cannot perform any actions.
+             All action buttons are wrapped in @if (_isLeader). *@
+        @if (_isLeader)
+        {
+            <div class="tdd-actions-bar">
+
+                @* Update Team Location — available at any disaster status *@
+                <button class="tdd-action-btn tdd-action-btn--primary"
+                        @onclick="OpenLocationModal">
+                    <i class="fa-solid fa-location-dot"></i>
+                    Update Location
+                </button>
+
+                @* Team Status: toggle Active ↔ Returning — available at any disaster status *@
+                @if (_teamStatus == "Active")
+                {
+                    <button class="tdd-action-btn tdd-action-btn--warning"
+                            @onclick='() => ConfirmTeamStatusAsync("returning")'
+                            disabled="@_teamStatusBusy">
+                        @if (_teamStatusBusy)
+                        {
+                            <span class="spinner spinner-sm"></span>
+                        }
+                        else
+                        {
+                            <i class="fa-solid fa-rotate-left"></i>
+                        }
+                        Set Returning
+                    </button>
+                }
+                else
+                {
+                    <button class="tdd-action-btn tdd-action-btn--success"
+                            @onclick='() => ConfirmTeamStatusAsync("active")'
+                            disabled="@_teamStatusBusy">
+                        @if (_teamStatusBusy)
+                        {
+                            <span class="spinner spinner-sm"></span>
+                        }
+                        else
+                        {
+                            <i class="fa-solid fa-play"></i>
+                        }
+                        Set Active
+                    </button>
+                }
+
+                @* Assign Resources — only while disaster is Active *@
+                @if (_disaster.Status == "InProgress")
+                {
+                    <button class="tdd-action-btn tdd-action-btn--secondary"
+                            @onclick="OpenAssignModal">
+                        <i class="fa-solid fa-boxes-packing"></i>
+                        Assign Resources
+                    </button>
+                }
+
+                @* Resolve Disaster — only while Active *@
+                @if (_disaster.Status == "InProgress")
+                {
+                    <button class="tdd-action-btn tdd-action-btn--success"
+                            @onclick="() => _showResolveConfirm = true">
+                        <i class="fa-solid fa-circle-check"></i>
+                        Resolve Disaster
+                    </button>
+                }
+
+                @* Close Disaster — only while Resolved *@
+                @if (_disaster.Status == "Resolved")
+                {
+                    <button class="tdd-action-btn tdd-action-btn--danger"
+                            @onclick="() => _showCloseConfirm = true">
+                        <i class="fa-solid fa-lock"></i>
+                        Close Disaster
+                    </button>
+                }
+
+                @* Generate Report — only when Closed *@
+                @if (_disaster.Status == "Closed")
+                {
+                    <button class="tdd-action-btn tdd-action-btn--primary"
+                            @onclick="GenerateReportAsync"
+                            disabled="@_reportBusy">
+                        @if (_reportBusy)
+                        {
+                            <span class="spinner spinner-sm"></span>
+                        }
+                        else
+                        {
+                            <i class="fa-solid fa-file-pdf"></i>
+                        }
+                        Generate Report
+                    </button>
+                }
+
+            </div>
+        }
+
+        @* ════ TABS ════ *@
+        <div class="tdd-tabs">
+            @foreach (var tab in _tabs)
+            {
+                <button class="tdd-tab @(_activeTab == tab ? "tdd-tab--active" : "")"
+                        @onclick="() => SetActiveTab(tab)">
+                    @tab
+                </button>
+            }
+        </div>
+
+        @* ── Resources tab ── *@
+        @if (_activeTab == "Resources")
+        {
+            <div class="tdd-section">
+                @if (_disasterDetail?.Resources is null || _disasterDetail.Resources.Count == 0)
+                {
+                    <div class="tdd-empty-inline">No resources assigned to this disaster.</div>
+                }
+                else
+                {
+                    <div class="tdd-resource-list">
+                        @foreach (var r in _disasterDetail!.Resources)
+                        {
+                            var res = r;
+                            <div class="tdd-resource-card">
+                                <div class="tdd-resource-header">
+                                    <span class="tdd-resource-type">@res.ResourceType</span>
+                                    @if (!string.IsNullOrEmpty(res.Notes))
+                                    {
+                                        <span class="tdd-resource-notes">@res.Notes</span>
+                                    }
+                                </div>
+                                <div class="tdd-resource-stats">
+                                    <div class="tdd-rstat"><span class="tdd-rstat-val">@res.Sent</span><span class="tdd-rstat-lbl">Sent</span></div>
+                                    <div class="tdd-rstat"><span class="tdd-rstat-val" style="color:var(--color-warning)">@res.Consumed</span><span class="tdd-rstat-lbl">Consumed</span></div>
+                                    <div class="tdd-rstat"><span class="tdd-rstat-val" style="color:var(--color-success)">@res.Returned</span><span class="tdd-rstat-lbl">Returned</span></div>
+                                    <div class="tdd-rstat"><span class="tdd-rstat-val" style="color:var(--color-critical)">@res.Damaged</span><span class="tdd-rstat-lbl">Damaged</span></div>
+                                </div>
+                                @* Mark resource fate: available while Active OR Resolved (before Close) *@
+                                @if (_isLeader && (_disaster.Status == "InProgress" || _disaster.Status == "Resolved"))
+                                {
+                                    <div class="tdd-resource-actions">
+                                        <button class="tdd-res-btn tdd-res-btn--consume"
+                                                @onclick='() => OpenResourceAction(res, "consume")'>
+                                            <i class="fa-solid fa-fire-flame-curved"></i> Consume
+                                        </button>
+                                        <button class="tdd-res-btn tdd-res-btn--return"
+                                                @onclick='() => OpenResourceAction(res, "return")'>
+                                            <i class="fa-solid fa-rotate-left"></i> Return
+                                        </button>
+                                        <button class="tdd-res-btn tdd-res-btn--damage"
+                                                @onclick='() => OpenResourceAction(res, "damage")'>
+                                            <i class="fa-solid fa-wrench"></i> Damage
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        @* ── Affected Persons tab ── *@
+        @if (_activeTab == "Affected Persons")
+        {
+            <div class="tdd-section">
+                @* Add person: available while Active OR Resolved (before Close) *@
+                @if (_isLeader && _disaster is not null && (_disaster.Status == "InProgress" || _disaster.Status == "Resolved"))
+                {
+                    <div class="tdd-section-toolbar">
+                        <button class="tdd-action-btn tdd-action-btn--primary"
+                                @onclick="() => _showAddPersonModal = true">
+                            <i class="fa-solid fa-user-plus"></i> Add Person
+                        </button>
+                    </div>
+                }
+
+                @if (!(_disasterDetail?.AffectedPersons.Any() ?? false))
+                {
+                    <div class="tdd-empty-inline">No affected persons recorded.</div>
+                }
+                else
+                {
+                    <div class="tdd-person-list">
+                        <div class="tdd-person-header">
+                            <span>Name</span><span>Age</span><span>Phone</span><span>Status</span><span>Notes</span>
+                        </div>
+                        @foreach (var p in _disasterDetail!.AffectedPersons)
+                        {
+                            <div class="tdd-person-row">
+                                <span class="tdd-person-name">@p.Name</span>
+                                <span>@p.Age</span>
+                                <span>@p.Phone</span>
+                                <span class="tdd-person-status tdd-pstatus--@p.Status.ToLower()">@p.Status</span>
+                                <span class="tdd-person-notes">@(p.Notes ?? "—")</span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        @* ── Volunteers tab ── *@
+        @if (_activeTab == "Volunteers")
+        {
+            <div class="tdd-section">
+                @if (_volunteersLoading)
+                {
+                    <div class="tdd-loading"><span class="spinner"></span>Loading volunteers…</div>
+                }
+                else if (!_volunteers.Any())
+                {
+                    <div class="tdd-empty-inline">No volunteers assigned to this disaster.</div>
+                }
+                else
+                {
+                    <div class="tdd-volunteer-list">
+                        @foreach (var v in _volunteers)
+                        {
+                            var vol = v;
+                            <div class="tdd-vol-card">
+                                <div class="tdd-vol-avatar">
+                                    @if (!string.IsNullOrEmpty(vol.PhotoUrl))
+                                    {
+                                        <img src="@vol.PhotoUrl" alt="@vol.Name" />
+                                    }
+                                    else
+                                    {
+                                        <i class="fa-solid fa-user"></i>
+                                    }
+                                </div>
+                                <div class="tdd-vol-body">
+                                    <div class="tdd-vol-name">@vol.Name</div>
+                                    <div class="tdd-vol-contact">@vol.Email · @vol.PhoneNumber</div>
+                                </div>
+                                <span class="tdd-vol-status tdd-pstatus--@vol.Status.ToLower()">@vol.Status</span>
+                                @* Evaluate button: only for leader on Resolved disaster.
+                                     Once evaluated locally, replace button with a badge. *@
+                                @if (_isLeader && _disaster.Status == "Resolved")
+                                {
+                                    @if (_evaluatedVolunteerIds.Contains(vol.Id))
+                                    {
+                                        <span class="tdd-eval-done-badge">
+                                            <i class="fa-solid fa-circle-check"></i> Evaluated
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <button class="tdd-eval-btn" @onclick="() => OpenEvalModal(vol)">
+                                            <i class="fa-solid fa-star"></i> Evaluate
+                                        </button>
+                                    }
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    @* Volunteer Pagination *@
+                    @if (_volTotalPages > 1)
+                    {
+                        <div class="tdd-vol-pagination">
+                            <span class="pag-info">
+                                @_volPagFrom–@_volPagTo of @_volTotalCount
+                            </span>
+
+                            <button class="page-btn" disabled="@(_volPage == 1)"
+                                    @onclick="() => GoToVolPage(_volPage - 1)">
+                                ‹
+                            </button>
+
+                            @foreach (var p in VolPageNumbers)
+                            {
+                                @if (p == -1)
+                                {
+                                    <span class="page-btn" style="pointer-events:none">…</span>
+                                }
+                                else
+                                {
+                                    <button class="page-btn @(p == _volPage ? "active" : "")"
+                                            @onclick="() => GoToVolPage(p)">
+                                        @p
+                                    </button>
+                                }
+                            }
+
+                            <button class="page-btn" disabled="@(_volPage == _volTotalPages)"
+                                    @onclick="() => GoToVolPage(_volPage + 1)">
+                                ›
+                            </button>
+                        </div>
+                    }
+                }
+            </div>
+        }
+
+        @* ── Report tab — only when Closed ── *@
+        @if (_activeTab == "Report" && _disaster.Status == "Closed")
+        {
+            <div class="tdd-section">
+                @if (_disasterDetail?.Report is not null)
+                {
+                    <div class="tdd-report-card">
+                        <i class="fa-solid fa-file-pdf tdd-report-icon"></i>
+                        <div class="tdd-report-body">
+                            <div class="tdd-report-title">Disaster Report</div>
+                            <div class="tdd-report-meta">Issued: @_disasterDetail!.Report!.IssuedAt.ToString("MMM d, yyyy")</div>
+                            @if (!string.IsNullOrEmpty(_disasterDetail!.Report!.Summary))
+                            {
+                                <div class="tdd-report-summary">@_disasterDetail!.Report!.Summary</div>
+                            }
+                        </div>
+                        @if (!string.IsNullOrEmpty(_disasterDetail!.Report!.PdfUrl))
+                        {
+                            <a class="tdd-action-btn tdd-action-btn--primary" href="@_disasterDetail!.Report!.PdfUrl" target="_blank">
+                                <i class="fa-solid fa-download"></i> Download PDF
+                            </a>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="tdd-empty-inline">
+                        <i class="fa-solid fa-file-circle-question" style="font-size:28px;color:var(--text-muted)"></i>
+                        No report generated yet.
+                        @if (_isLeader)
+                        {
+                            <button class="tdd-action-btn tdd-action-btn--primary"
+                                    @onclick="GenerateReportAsync" disabled="@_reportBusy">
+                                @if (_reportBusy)
+                                {
+                                    <span class="spinner spinner-sm"></span>
+                                }
+                                else
+                                {
+                                    <i class="fa-solid fa-file-pdf"></i>
+                                }
+                                Generate Report
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+
+</div>
+
+<!-- ════════════════════════════════════════════════
+     MODALS
+════════════════════════════════════════════════ -->
+<!-- ── Update Location Modal ── -->
+@if (_showLocationModal)
+{
+    <div class="modal-overlay" @onclick="() => _showLocationModal = false">
+        <div class="modal" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <div>
+                    <div class="modal-title">Update Team Location</div>
+                    <div class="modal-subtitle">Click on the map to set the team's current location</div>
+                </div>
+                <button class="modal-close" @onclick="() => _showLocationModal = false">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="modal-body" style="padding:0;display:flex;flex-direction:column">
+                <div id="teamLocationMap" class="tdd-map" style="height:420px;width:100%;flex-shrink:0"></div>
+                <div class="loc-coord-bar">
+                    <i class="fa-solid fa-crosshairs" style="color:var(--accent-primary)"></i>
+                    <span class="loc-coord-label">Selected position:</span>
+                    <span class="loc-coord-value" id="locCoordDisplay">Click or drag the pin on the map</span>
+                </div>
+                <input type="hidden" id="teamLocationLat" />
+                <input type="hidden" id="teamLocationLng" />
+            </div>
+            <div class="modal-footer">
+                <button class="tdd-btn-secondary" @onclick="() => _showLocationModal = false">Cancel</button>
+                <button class="tdd-btn-primary" @onclick="SaveLocationAsync" disabled="@_locationBusy">
+                    @if (_locationBusy)
+                    {
+                        <span class="spinner spinner-sm"></span>
+                    }
+                    Save Location
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ── Resolve Confirm ── -->
+@if (_showResolveConfirm)
+{
+    <div class="modal-overlay" @onclick="() => _showResolveConfirm = false">
+        <div class="modal" style="max-width:480px" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <div class="modal-title">Resolve Disaster?</div>
+                <button class="modal-close" @onclick="() => _showResolveConfirm = false"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p style="color:var(--text-secondary);font-size:14px">
+                    Mark this disaster as <strong>Resolved</strong>. You can still add affected persons and manage resources before closing.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button class="tdd-btn-secondary" @onclick="() => _showResolveConfirm = false">Cancel</button>
+                <button class="tdd-btn-success" @onclick="ResolveDisasterAsync" disabled="@_disasterActionBusy">
+                    @if (_disasterActionBusy)
+                    {
+                        <span class="spinner spinner-sm"></span>
+                    }
+                    Confirm Resolve
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ── Close Confirm ── -->
+@if (_showCloseConfirm)
+{
+    <div class="modal-overlay" @onclick="() => _showCloseConfirm = false">
+        <div class="modal" style="max-width:480px" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <div class="modal-title">Close Disaster?</div>
+                <button class="modal-close" @onclick="() => _showCloseConfirm = false"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p style="color:var(--text-secondary);font-size:14px">
+                    <strong>Closing is final.</strong> Once closed, the disaster is archived. You can then generate the final report.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button class="tdd-btn-secondary" @onclick="() => _showCloseConfirm = false">Cancel</button>
+                <button class="tdd-btn-danger" @onclick="CloseDisasterAsync" disabled="@_disasterActionBusy">
+                    @if (_disasterActionBusy)
+                    {
+                        <span class="spinner spinner-sm"></span>
+                    }
+                    Confirm Close
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ── Assign Resources Modal ── -->
+@if (_showAssignResourceModal)
+{
+    <div class="modal-overlay" @onclick="() => _showAssignResourceModal = false">
+        <div class="modal" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <div>
+                    <div class="modal-title">Assign Resources</div>
+                    <div class="modal-subtitle">Select team resources to send to the disaster</div>
+                </div>
+                <button class="modal-close" @onclick="() => _showAssignResourceModal = false"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                @if (_teamResources.Count == 0)
+                {
+                    <p style="color:var(--text-muted)">No team resources available.</p>
+                }
+                else
+                {
+                    @foreach (var r in _teamResources)
+                    {
+                        var res = r;
+                        <div class="tdd-assign-row">
+                            <div class="tdd-assign-info">
+                                <span class="tdd-assign-type">@res.Type</span>
+                                <span class="tdd-assign-avail">@res.Quantity available</span>
+                            </div>
+                            <input type="number" class="tdd-assign-qty"
+                                   min="0" max="@res.Quantity"
+                                   @bind="_assignQty[res.Id]"
+                                   placeholder="Qty" />
+                        </div>
+                    }
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="tdd-btn-secondary" @onclick="() => _showAssignResourceModal = false">Cancel</button>
+                <button class="tdd-btn-primary" @onclick="AssignResourcesAsync" disabled="@_assignBusy">
+                    @if (_assignBusy)
+                    {
+                        <span class="spinner spinner-sm"></span>
+                    }
+                    Assign
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ── Resource Action Modal (consume / return / damage) ── -->
+@if (_resourceActionTarget is not null)
+{
+    <div class="modal-overlay" @onclick="CloseResourceAction">
+        <div class="modal" style="max-width:440px" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <div class="modal-title">@_resourceActionVerb @_resourceActionTarget.ResourceType</div>
+                <button class="modal-close" @onclick="CloseResourceAction"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <label class="tdd-form-label">Quantity</label>
+                <input type="number" class="tdd-form-input" min="1"
+                       @bind="_resourceActionQty" placeholder="Enter quantity" />
+            </div>
+            <div class="modal-footer">
+                <button class="tdd-btn-secondary" @onclick="CloseResourceAction">Cancel</button>
+                <button class="tdd-btn-primary" @onclick="SubmitResourceActionAsync" disabled="@_resourceActionBusy">
+                    @if (_resourceActionBusy)
+                    {
+                        <span class="spinner spinner-sm"></span>
+                    }
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ── Add Affected Person Modal ── -->
+@if (_showAddPersonModal)
+{
+    <div class="modal-overlay" @onclick="() => _showAddPersonModal = false">
+        <div class="modal" style="max-width:540px" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <div class="modal-title">Add Affected Person</div>
+                <button class="modal-close" @onclick="() => _showAddPersonModal = false"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="tdd-form-grid">
+                    <div class="tdd-form-group">
+                        <label class="tdd-form-label">Name *</label>
+                        <input class="tdd-form-input" @bind="_newPerson.Name" placeholder="Full name" />
+                    </div>
+                    <div class="tdd-form-group">
+                        <label class="tdd-form-label">Age *</label>
+                        <input type="number" class="tdd-form-input" @bind="_newPerson.Age" placeholder="Age" />
+                    </div>
+                    <div class="tdd-form-group">
+                        <label class="tdd-form-label">Phone</label>
+                        <input class="tdd-form-input" @bind="_newPerson.Phone" placeholder="Phone number" />
+                    </div>
+                    <div class="tdd-form-group">
+                        <label class="tdd-form-label">Status *</label>
+                        <select class="tdd-form-input" @bind="_newPerson.Status">
+                            <option value="">— Select —</option>
+                            <option value="Safe">Safe</option>
+                            <option value="Injured">Injured</option>
+                            <option value="Missing">Missing</option>
+                            <option value="Deceased">Deceased</option>
+                        </select>
+                    </div>
+                    <div class="tdd-form-group tdd-form-group--full">
+                        <label class="tdd-form-label">Notes</label>
+                        <textarea class="tdd-form-input" rows="2" @bind="_newPerson.Notes" placeholder="Optional notes"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="tdd-btn-secondary" @onclick="() => _showAddPersonModal = false">Cancel</button>
+                <button class="tdd-btn-primary" @onclick="AddPersonAsync" disabled="@_personBusy">
+                    @if (_personBusy)
+                    {
+                        <span class="spinner spinner-sm"></span>
+                    }
+                    Add Person
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ── Evaluate Volunteer Modal ── -->
+@if (_evalVolunteer is not null)
+{
+    <div class="modal-overlay" @onclick="CloseEvalModal">
+        <div class="modal" style="max-width:520px" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <div>
+                    <div class="modal-title">Evaluate @_evalVolunteer.Name</div>
+                    <div class="modal-subtitle">Score each area from 1 (lowest) to 10 (highest)</div>
+                </div>
+                <button class="modal-close" @onclick="CloseEvalModal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="tdd-eval-grid">
+
+                    <!-- Commitment -->
+                    <div class="tdd-eval-row">
+                        <div class="tdd-eval-label">
+                            <i class="fa-solid fa-clock"></i>
+                            Commitment
+                        </div>
+                        <div class="tdd-star-row">
+                            @for (int s = 1; s <= 10; s++)
+                            {
+                                var score = s;
+                                <button class="tdd-star-btn @(_evalCommitment >= score ? "tdd-star-btn--active" : "")"
+                                        @onclick="() => _evalCommitment = score">
+                                    @score
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Skill -->
+                    <div class="tdd-eval-row">
+                        <div class="tdd-eval-label">
+                            <i class="fa-solid fa-wrench"></i>
+                            Skill
+                        </div>
+                        <div class="tdd-star-row">
+                            @for (int s = 1; s <= 10; s++)
+                            {
+                                var score = s;
+                                <button class="tdd-star-btn @(_evalSkill >= score ? "tdd-star-btn--active" : "")"
+                                        @onclick="() => _evalSkill = score">
+                                    @score
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Safety -->
+                    <div class="tdd-eval-row">
+                        <div class="tdd-eval-label">
+                            <i class="fa-solid fa-shield-halved"></i>
+                            Safety
+                        </div>
+                        <div class="tdd-star-row">
+                            @for (int s = 1; s <= 10; s++)
+                            {
+                                var score = s;
+                                <button class="tdd-star-btn @(_evalSafety >= score ? "tdd-star-btn--active" : "")"
+                                        @onclick="() => _evalSafety = score">
+                                    @score
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Teamwork -->
+                    <div class="tdd-eval-row">
+                        <div class="tdd-eval-label">
+                            <i class="fa-solid fa-handshake"></i>
+                            Teamwork
+                        </div>
+                        <div class="tdd-star-row">
+                            @for (int s = 1; s <= 10; s++)
+                            {
+                                var score = s;
+                                <button class="tdd-star-btn @(_evalTeamwork >= score ? "tdd-star-btn--active" : "")"
+                                        @onclick="() => _evalTeamwork = score">
+                                    @score
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Initiative -->
+                    <div class="tdd-eval-row">
+                        <div class="tdd-eval-label">
+                            <i class="fa-solid fa-bolt"></i>
+                            Initiative
+                        </div>
+                        <div class="tdd-star-row">
+                            @for (int s = 1; s <= 10; s++)
+                            {
+                                var score = s;
+                                <button class="tdd-star-btn @(_evalInitiative >= score ? "tdd-star-btn--active" : "")"
+                                        @onclick="() => _evalInitiative = score">
+                                    @score
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Notes -->
+                <div style="margin-top: var(--sp-4);">
+                    <label class="tdd-form-label">Notes (optional)</label>
+                    <textarea class="tdd-form-input" rows="2"
+                              @bind="_evalNotes"
+                              placeholder="Any additional comments…"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="tdd-btn-secondary" @onclick="CloseEvalModal">Cancel</button>
+                <button class="tdd-btn-primary" @onclick="SubmitEvalAsync"
+                        disabled="@(_evalBusy || _evalCommitment == 0 || _evalSkill == 0 || _evalSafety == 0 || _evalTeamwork == 0 || _evalInitiative == 0)">
+                    @if (_evalBusy)
+                    {
+                        <span class="spinner spinner-sm"></span>
+                    }
+                    Submit Evaluation
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string? DisasterId { get; set; }
+
+    // ── State ──────────────────────────────────────────────────────
+    private bool _loading = true;
+    private string? _error;
+    private TeamDisasterResponse? _disaster;
+    private DisasterDetailResponse? _disasterDetail;
+    private TeamLocation? _teamLocation;
+    private bool _isLeader;
+    private Guid _teamId;
+    private string _teamStatus = "Active";
+
+    // Tabs — Report tab is added dynamically once disaster is Closed
+    private readonly List<string> _tabs = new() { "Resources", "Affected Persons", "Volunteers" };
+    private string _activeTab = "Resources";
+
+    // Toast
+    private ToastState? _toast;
+    private CancellationTokenSource? _toastCts;
+
+    // Location modal
+    private bool _showLocationModal;
+    private bool _locationBusy;
+
+    // Team status
+    private bool _teamStatusBusy;
+
+    // Disaster status
+    private bool _showResolveConfirm;
+    private bool _showCloseConfirm;
+    private bool _disasterActionBusy;
+
+    // Resources
+    private bool _showAssignResourceModal;
+    private bool _assignBusy;
+    private List<TeamResourceResponse> _teamResources = new();
+    private Dictionary<Guid, int> _assignQty = new();
+
+    // Resource actions (Consume / Return / Damage)
+    private ResourceDto? _resourceActionTarget;
+    private string _resourceActionVerb = "";
+    private string _resourceActionType = "";
+    private int _resourceActionQty;
+    private bool _resourceActionBusy;
+
+    // Affected persons
+    private bool _showAddPersonModal;
+    private bool _personBusy;
+    private BlazorApp2.Requests.AffectedPersonDto _newPerson = new();
+
+    // Volunteers — paginated
+    private List<DisasterVolunteerResponse> _volunteers = new();
+    private bool _volunteersLoading;
+    private const int VolPageSize = 8;
+    private int _volPage = 1;
+    private int _volTotalCount;
+    private int _volTotalPages => (int)Math.Ceiling((double)_volTotalCount / VolPageSize);
+    private int _volPagFrom => _volTotalCount == 0 ? 0 : (_volPage - 1) * VolPageSize + 1;
+    private int _volPagTo => Math.Min(_volPage * VolPageSize, _volTotalCount);
+
+    private IEnumerable<int> VolPageNumbers
+    {
+        get
+        {
+            int start = Math.Max(1, _volPage - 2);
+            int end = Math.Min(_volTotalPages, start + 4);
+            var pages = Enumerable.Range(start, end - start + 1).ToList();
+            if (end < _volTotalPages)
+            {
+                pages.Add(-1);   // ellipsis sentinel
+                pages.Add(_volTotalPages);
+            }
+            return pages;
+        }
+    }
+
+    // Evaluation — track submitted locally so button turns into a badge
+    private HashSet<Guid> _evaluatedVolunteerIds = new();
+    private DisasterVolunteerResponse? _evalVolunteer;
+    private int _evalCommitment;
+    private int _evalSkill;
+    private int _evalSafety;
+    private int _evalTeamwork;
+    private int _evalInitiative;
+    private string? _evalNotes;
+    private bool _evalBusy;
+
+    // Report
+    private bool _reportBusy;
+
+    // ── Lifecycle ──────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        var me = await Api.GetCurrentTeamMemberInfoAsync();
+        if (!me.IsSuccess || me.Data is null)
+        {
+            _error = "Could not load your team information.";
+            _loading = false;
+            return;
+        }
+
+        _isLeader = me.Data.IsLeader;
+        _teamId = me.Data.TeamId;
+
+        await LoadDisasterAsync();
+    }
+
+    private async Task LoadDisasterAsync()
+    {
+        _loading = true;
+        StateHasChanged();
+
+        var disasterTask = Api.GetCurrentTeamDisaster(_teamId);
+        var locationTask = Api.GetCurrentTeamLocation(_teamId);
+        var teamTask = Api.GetTeamByIdAsync(_teamId);
+
+        await Task.WhenAll(disasterTask, locationTask, teamTask);
+
+        var disasterResult = disasterTask.Result;
+        if (disasterResult.IsSuccess && disasterResult.Data is not null)
+        {
+            _disaster = disasterResult.Data;
+
+            // Ensure Report tab exists iff disaster is Closed (idempotent)
+            if (_disaster.Status == "Closed" && !_tabs.Contains("Report"))
+                _tabs.Add("Report");
+            else if (_disaster.Status != "Closed" && _tabs.Contains("Report"))
+                _tabs.Remove("Report");
+
+            var detailTask = Api.GetDisasterByIdAsync(_disaster.DisasterId);
+            await Task.WhenAll(LoadVolunteersAsync(), detailTask);
+            if (detailTask.Result.IsSuccess && detailTask.Result.Data is not null)
+                _disasterDetail = detailTask.Result.Data;
+        }
+        else
+        {
+            _disaster = null;
+            _error = disasterResult.ErrorDetail;
+        }
+
+        var locResult = locationTask.Result;
+        if (locResult.IsSuccess && locResult.Data is not null)
+            _teamLocation = locResult.Data;
+
+        var teamResult = teamTask.Result;
+        if (teamResult.IsSuccess && teamResult.Data is not null)
+            _teamStatus = teamResult.Data.Status;
+
+        _loading = false;
+        StateHasChanged();
+    }
+
+    // ── Tab navigation ─────────────────────────────────────────────
+    private async Task SetActiveTab(string tab)
+    {
+        _activeTab = tab;
+        if (tab == "Volunteers" && !_volunteers.Any())
+            await LoadVolunteersAsync();
+    }
+
+    // ── Volunteer pagination ───────────────────────────────────────
+    private async Task LoadVolunteersAsync()
+    {
+        if (_disaster is null) return;
+        _volunteersLoading = true;
+        StateHasChanged();
+
+        var result = await Api.GetDisasterVolunteers(_disaster.DisasterId, _volPage, VolPageSize);
+        if (result.IsSuccess && result.Data is not null)
+        {
+            _volunteers = result.Data.Items.ToList();
+            _volTotalCount = result.Data.TotalCount;
+        }
+
+        _volunteersLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task GoToVolPage(int page)
+    {
+        if (page < 1 || page > _volTotalPages) return;
+        _volPage = page;
+        await LoadVolunteersAsync();
+    }
+
+    // ── Map initialisation ─────────────────────────────────────────
+    private bool _shouldInitLocationMap = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_shouldInitLocationMap)
+        {
+            _shouldInitLocationMap = false;
+            await Task.Delay(150);
+            var lat = _teamLocation?.Latitude ?? _disaster?.Latitude ?? 34.8;
+            var lng = _teamLocation?.Longitude ?? _disaster?.Longitude ?? 38.9;
+            await JS.InvokeVoidAsync("mapInterop.initLocationMap", lat, lng);
+        }
+    }
+
+    private DotNetObjectReference<TeamDisasterDetail>? _mapRef;
+
+    private void OpenLocationModal()
+    {
+        _showLocationModal = true;
+        _shouldInitLocationMap = true;
+    }
+
+    [JSInvokable]
+    public void OnLocationSelected(double lat, double lng) { /* values are read from hidden inputs by JS */ }
+
+    private async Task SaveLocationAsync()
+    {
+        _locationBusy = true;
+        StateHasChanged();
+
+        var lat = await JS.InvokeAsync<double>("getTeamLocationLat");
+        var lng = await JS.InvokeAsync<double>("getTeamLocationLng");
+
+        if (lat == 0 && lng == 0)
+        {
+            ShowToast("Please click on the map to select a location.", "error");
+            _locationBusy = false;
+            return;
+        }
+
+        var result = await Api.UpdateTeamLocationAsync(_teamId, new UpdateTeamLocation { Latitude = lat, Longitude = lng });
+
+        if (result.IsSuccess)
+        {
+            ShowToast("Team location updated.", "success");
+            _showLocationModal = false;
+            _teamLocation = new TeamLocation(lat, lng, false);
+        }
+        else
+        {
+            ShowToast(result.ErrorDetail ?? "Failed to update location.", "error");
+        }
+
+        _locationBusy = false;
+        await JS.InvokeVoidAsync("mapInterop.destroyMap", "teamLocationMap");
+    }
+
+    // ── Team status ────────────────────────────────────────────────
+    private async Task ConfirmTeamStatusAsync(string newStatus)
+    {
+        _teamStatusBusy = true;
+        StateHasChanged();
+
+        ApiResult<string> result;
+        if (newStatus == "active")
+            result = await Api.ActivateTeamAsync(_teamId);
+        else
+            result = await Api.ReturningTeamAsync(_teamId);
+
+        if (result.IsSuccess)
+        {
+            _teamStatus = newStatus == "active" ? "Active" : "Returning";
+            ShowToast($"Team status updated to {_teamStatus}.", "success");
+        }
+        else
+        {
+            ShowToast(result.ErrorDetail ?? "Failed to update team status.", "error");
+        }
+
+        _teamStatusBusy = false;
+    }
+
+    // ── Disaster status ────────────────────────────────────────────
+    private async Task ResolveDisasterAsync()
+    {
+        _disasterActionBusy = true;
+        StateHasChanged();
+
+        var result = await Api.ResolveDisasterAsync(_disaster!.DisasterId);
+        if (result.IsSuccess)
+        {
+            ShowToast("Disaster resolved.", "success");
+            _showResolveConfirm = false;
+            await LoadDisasterAsync();  // refresh so status badge + action buttons update
+        }
+        else
+        {
+            ShowToast(result.ErrorDetail ?? "Failed to resolve disaster.", "error");
+        }
+
+        _disasterActionBusy = false;
+    }
+
+    private async Task CloseDisasterAsync()
+    {
+        _disasterActionBusy = true;
+        StateHasChanged();
+
+        var result = await Api.CloseDisasterAsync(_disaster!.DisasterId);
+        if (result.IsSuccess)
+        {
+            ShowToast("Disaster closed.", "success");
+            _showCloseConfirm = false;
+            await LoadDisasterAsync();  // refresh — also adds Report tab
+        }
+        else
+        {
+            ShowToast(result.ErrorDetail ?? "Failed to close disaster.", "error");
+        }
+
+        _disasterActionBusy = false;
+    }
+
+    // ── Assign resources ───────────────────────────────────────────
+    private async Task OpenAssignModal()
+    {
+        _showAssignResourceModal = true;
+        var result = await Api.GetTeamResourcesAsync(_teamId, 1, 50);
+        if (result.IsSuccess && result.Data is not null)
+        {
+            _teamResources = result.Data.Items;
+            _assignQty = _teamResources.ToDictionary(r => r.Id, _ => 0);
+        }
+    }
+
+    private async Task AssignResourcesAsync()
+    {
+        _assignBusy = true;
+        StateHasChanged();
+
+        bool anyError = false;
+        foreach (var (id, qty) in _assignQty)
+        {
+            if (qty <= 0) continue;
+            var result = await Api.DecreaseResourceQuantityAsync(_teamId, id, qty);
+            if (!result.IsSuccess) anyError = true;
+        }
+
+        ShowToast(anyError ? "Some resources failed to assign." : "Resources assigned.", anyError ? "error" : "success");
+        _showAssignResourceModal = false;
+        _assignBusy = false;
+        await LoadDisasterAsync();
+    }
+
+    // ── Resource actions (Consume / Return / Damage) ───────────────
+    private void OpenResourceAction(ResourceDto r, string type)
+    {
+        _resourceActionTarget = r;
+        _resourceActionType = type;
+        _resourceActionVerb = type switch { "consume" => "Consume", "return" => "Return", "damage" => "Mark Damaged", _ => "" };
+        _resourceActionQty = 1;
+    }
+
+    private void CloseResourceAction()
+    {
+        _resourceActionTarget = null;
+        _resourceActionQty = 0;
+    }
+
+    private async Task SubmitResourceActionAsync()
+    {
+        if (_resourceActionTarget is null || _disaster is null) return;
+
+        _resourceActionBusy = true;
+        StateHasChanged();
+
+        ApiResult<string> result = _resourceActionType switch
+        {
+            "consume" => await Api.ConsumeDisasterResourceAsync(_disaster.DisasterId, _resourceActionTarget.Id,
+                            new ConsumeDisasterResourceRequest { Quantity = _resourceActionQty }),
+            "return" => await Api.ReturnDisasterResourceAsync(_disaster.DisasterId, _resourceActionTarget.Id,
+                            new ReturnDisasterResourceRequest { Quantity = _resourceActionQty }),
+            "damage" => await Api.MarkDisasterResourceDamagedAsync(_disaster.DisasterId, _resourceActionTarget.Id,
+                            new MarkDisasterResourceDamagedRequest { Quantity = _resourceActionQty }),
+            _ => ApiResult<string>.Failure("Unknown action")
+        };
+
+        if (result.IsSuccess)
+        {
+            ShowToast("Resource updated.", "success");
+            CloseResourceAction();
+            await LoadDisasterAsync();
+        }
+        else
+        {
+            ShowToast(result.ErrorDetail ?? "Failed.", "error");
+        }
+
+        _resourceActionBusy = false;
+    }
+
+    // ── Affected persons ───────────────────────────────────────────
+    private async Task AddPersonAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newPerson.Name) || string.IsNullOrWhiteSpace(_newPerson.Status))
+        {
+            ShowToast("Name and Status are required.", "error");
+            return;
+        }
+
+        _personBusy = true;
+        StateHasChanged();
+
+        var request = new AddAffectedPersonsRequest
+        {
+            Persons = new List<BlazorApp2.Requests.AffectedPersonDto> { _newPerson }
+        };
+
+        var result = await Api.AddAffectedPersonsAsync(_disaster!.DisasterId, request);
+
+        if (result.IsSuccess)
+        {
+            ShowToast("Person added.", "success");
+            _showAddPersonModal = false;
+            _newPerson = new();
+            await LoadDisasterAsync();
+        }
+        else
+        {
+            ShowToast(result.ErrorDetail ?? "Failed to add person.", "error");
+        }
+
+        _personBusy = false;
+    }
+
+    // ── Volunteer evaluation ───────────────────────────────────────
+    private void OpenEvalModal(DisasterVolunteerResponse v)
+    {
+        _evalVolunteer = v;
+        _evalCommitment = 0;
+        _evalSkill = 0;
+        _evalSafety = 0;
+        _evalTeamwork = 0;
+        _evalInitiative = 0;
+        _evalNotes = null;
+    }
+
+    private void CloseEvalModal()
+    {
+        _evalVolunteer = null;
+        _evalCommitment = 0;
+        _evalSkill = 0;
+        _evalSafety = 0;
+        _evalTeamwork = 0;
+        _evalInitiative = 0;
+        _evalNotes = null;
+    }
+
+    private async Task SubmitEvalAsync()
+    {
+        if (_evalVolunteer is null) return;
+        if (_evalCommitment == 0 || _evalSkill == 0 || _evalSafety == 0 ||
+            _evalTeamwork == 0 || _evalInitiative == 0) return;
+
+        _evalBusy = true;
+        StateHasChanged();
+
+        var request = new EvaluateVolunteerRequest(
+            CommitmentScore: _evalCommitment,
+            SkillScore: _evalSkill,
+            SafetyScore: _evalSafety,
+            TeamWorkScore: _evalTeamwork,
+            InitiativeScore: _evalInitiative,
+            Notes: _evalNotes);
+
+        var result = await Api.EvaluateVolunteerAsync(_disaster!.DisasterId, _evalVolunteer.Id, request);
+
+        if (result.IsSuccess)
+        {
+            _evaluatedVolunteerIds.Add(_evalVolunteer.Id);  // mark locally so button becomes badge
+            ShowToast($"Evaluation submitted for {_evalVolunteer.Name}.", "success");
+            CloseEvalModal();
+        }
+        else
+        {
+            ShowToast(result.ErrorDetail ?? "Failed to submit evaluation.", "error");
+        }
+
+        _evalBusy = false;
+    }
+
+    // ── Report ─────────────────────────────────────────────────────
+    private async Task GenerateReportAsync()
+    {
+        if (_disaster is null) return;
+        _reportBusy = true;
+        StateHasChanged();
+
+        var result = await Api.GenerateReportAsync(_disaster.DisasterId);
+
+        if (result.IsSuccess)
+        {
+            ShowToast("Report generated.", "success");
+            _activeTab = "Report";
+            await LoadDisasterAsync();
+        }
+        else
+        {
+            ShowToast(result.ErrorDetail ?? "Failed to generate report.", "error");
+        }
+
+        _reportBusy = false;
+    }
+
+    // ── Toast helper ───────────────────────────────────────────────
+    private void ShowToast(string message, string type)
+    {
+        _toastCts?.Cancel();
+        _toastCts = new CancellationTokenSource();
+        _toast = new ToastState(message, type);
+        StateHasChanged();
+
+        var token = _toastCts.Token;
+        _ = Task.Delay(3500, token).ContinueWith(t =>
+        {
+            if (!t.IsCanceled) { _toast = null; InvokeAsync(StateHasChanged); }
+        }, TaskScheduler.Default);
+    }
+
+    public void Dispose()
+    {
+        _mapRef?.Dispose();
+        _toastCts?.Cancel();
+    }
+
+    private record ToastState(string Message, string Type);
+}

@@ -1,0 +1,160 @@
+﻿@page "/confirm-email"
+@layout EmptyLayout
+@inject BlazorApp2.Services.ServiceApi ServiceApi
+@inject NavigationManager Nav
+
+<PageTitle>Confirm Email — DERS</PageTitle>
+
+<div class="ce-root">
+    <div class="ce-card">
+
+        <div class="ce-header">
+            <h1>Confirm your email</h1>
+
+            @if (!string.IsNullOrEmpty(Email))
+            {
+                <p>We sent an 8-digit code to <strong>@Email</strong></p>
+            }
+            else
+            {
+                <p>Enter the 8-digit code sent to your email address.</p>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="ce-error">@_error</div>
+        }
+
+        <!-- OTP INPUTS -->
+        <div class="ce-code-inputs">
+            @for (int i = 0; i < 8; i++)
+            {
+                var index = i;
+
+                <input class="ce-box"
+                       @ref="_inputs[index]"
+                       maxlength="1"
+                       value="@_digits[index]"
+                       @oninput="e => OnDigitInput(index, e)"
+                       @onkeydown="e => OnKeyDown(index, e)" />
+            }
+        </div>
+
+        <button class="ce-btn" @onclick="ConfirmAsync" disabled="@_loading">
+            @if (_loading)
+            {
+                <span>Confirming...</span>
+            }
+            else
+            {
+                <span>Confirm email</span>
+            }
+        </button>
+
+        <div class="ce-resend">
+            <span>Didn't receive the code?</span>
+            <button @onclick="ResendAsync" disabled="@_resending">
+                @(_resending ? "Resending..." : "Resend code")
+            </button>
+        </div>
+
+    </div>
+</div>
+
+@code {
+
+    // ── Query param ─────────────────────────────
+    [Parameter, SupplyParameterFromQuery]
+    public string? Email { get; set; }
+
+    private string[] _digits = new string[8];
+    private ElementReference[] _inputs = new ElementReference[8];
+
+    private bool _loading;
+    private bool _resending;
+    private string _error = "";
+
+    private string Code => string.Concat(_digits);
+
+    // ── DIGIT INPUT HANDLER (with auto-focus) ──
+    private async Task OnDigitInput(int index, ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString() ?? "";
+
+        if (string.IsNullOrEmpty(value))
+        {
+            _digits[index] = "";
+            return;
+        }
+
+        // keep only last character (prevents paste overflow)
+        _digits[index] = value[^1].ToString();
+
+        // auto move next
+        if (index < 7)
+        {
+            await Task.Delay(1);
+            await _inputs[index + 1].FocusAsync();
+        }
+    }
+
+    // ── BACKSPACE NAVIGATION ──
+    private async Task OnKeyDown(int index, KeyboardEventArgs e)
+    {
+        if (e.Key == "Backspace" && string.IsNullOrEmpty(_digits[index]) && index > 0)
+        {
+            await Task.Delay(1);
+            await _inputs[index - 1].FocusAsync();
+        }
+    }
+
+    // ── CONFIRM EMAIL ──
+    private async Task ConfirmAsync()
+    {
+        _error = "";
+
+        if (string.IsNullOrWhiteSpace(Email))
+        {
+            _error = "Email is missing. Please restart registration.";
+            return;
+        }
+
+        if (_digits.Any(d => string.IsNullOrWhiteSpace(d)))
+        {
+            _error = "Please enter the full 8-digit code.";
+            return;
+        }
+
+        _loading = true;
+
+        var result = await ServiceApi.ConfirmEmailAsync(
+            new Requests.ConfirmEmailRequest(Email, Code));
+
+        _loading = false;
+
+        if (result.IsSuccess)
+        {
+            Nav.NavigateTo("/account-under-review");
+        }
+        else
+        {
+            _error = result.ErrorDetail ?? "Invalid or expired code.";
+        }
+    }
+
+    // ── RESEND CODE ──
+    private async Task ResendAsync()
+    {
+        _resending = true;
+        _error = "";
+
+        var result = await ServiceApi.ResendConfirmEmailCodeAsync(
+            new Requests.ResendEmailCodeRequest(Email));
+
+        _resending = false;
+
+        if (!result.IsSuccess)
+            _error = result.ErrorDetail ?? "Failed to resend code.";
+    }
+}

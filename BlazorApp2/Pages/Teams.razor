@@ -1,0 +1,1070 @@
+﻿@page "/admin/teams"
+@layout AdminLayout
+@inject BlazorApp2.Services.ServiceApi ServiceApi
+@inject IJSRuntime JS
+@using BlazorApp2.Responses
+@using BlazorApp2.Requests
+@using System.Text.Json
+
+<!-- ═══ PAGE HEADER ═══ -->
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Teams</h1>
+        <p class="page-subtitle">Field teams, members and resources</p>
+    </div>
+    <button class="btn btn-primary" @onclick="OpenCreateModal">
+        <i class="fa-solid fa-plus"></i> Create Team
+    </button>
+</div>
+
+<!-- ═══ FILTER BAR ═══ -->
+<div class="card">
+    <div class="filter-bar">
+        <div class="search-input-wrap">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input class="filter-search" placeholder="Search teams…"
+                   @bind="FilterSearch" @bind:event="oninput"
+                   @bind:after="OnFilterChanged" />
+        </div>
+        <select class="filter-select" @bind="FilterStatus" @bind:after="OnFilterChanged">
+            <option value="">All Statuses</option>
+            @foreach (var s in TeamStatuses)
+            {
+                <option value="@s.Name">@s.Name</option>
+            }
+        </select>
+        <select class="filter-select" @bind="FilterSpeciality" @bind:after="OnFilterChanged">
+            <option value="">All Specialities</option>
+            @foreach (var s in TeamSpecialities)
+            {
+                <option value="@s.Name">@s.Name</option>
+            }
+        </select>
+        <input class="filter-select" placeholder="Province…"
+               @bind="FilterProvince" @bind:event="oninput"
+               @bind:after="OnFilterChanged" />
+    </div>
+
+    <!-- ═══ TEAMS GRID ═══ -->
+    <div class="teams-grid">
+        @if (IsLoading)
+        {
+            <div class="grid-loading">
+                <span class="spinner"></span> Loading teams…
+            </div>
+        }
+        else if (!Items.Any())
+        {
+            <div class="empty-state">
+                <i class="fa-solid fa-people-group empty-state-icon"></i>
+                <div class="empty-state-title">No teams found</div>
+            </div>
+        }
+        else
+        {
+            @foreach (var t in Items)
+            {
+                <div class="team-card" @onclick="() => OpenDetail(t)">
+                    <div class="team-card-header">
+                        <div class="team-card-icon @SpecialityClass(t.Speciality)">
+                            <i class="fa-solid @SpecialityIcon(t.Speciality)"></i>
+                        </div>
+                        <span class="badge badge-@t.Status.ToLower()">@t.Status</span>
+                    </div>
+                    <div class="team-card-title">@t.Name</div>
+                    <div class="team-card-speciality">@SpaceWords(t.Speciality)</div>
+                    <div class="team-card-meta">
+                        <div class="team-card-meta-row">
+                            <i class="fa-solid fa-location-dot"></i>
+                            @t.Province, @t.City
+                        </div>
+                        <div class="team-card-meta-row">
+                            <i class="fa-solid fa-users"></i>
+                            @t.MembersCount members · @t.ActiveMembersCount active
+                        </div>
+                        <div class="team-card-meta-row">
+                            <i class="fa-solid fa-circle-check"
+                               style="color: @(t.IsReadyForMission ? "var(--color-success)" : "var(--text-muted)")">
+                            </i>
+                            @(t.IsReadyForMission ? "Ready for mission" : "Not ready")
+                        </div>
+                        @if (!string.IsNullOrEmpty(t.LeaderName))
+                        {
+                            <div class="team-card-meta-row">
+                                <i class="fa-solid fa-crown" style="color: var(--color-warning)"></i>
+                                @t.LeaderName
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
+    <!-- ═══ PAGINATION ═══ -->
+    @if (TotalPages > 1)
+    {
+        <div class="pagination">
+            <span class="pag-info">@PagFrom–@PagTo of @TotalCount</span>
+            <button class="page-btn" disabled="@(CurrentPage == 1)"
+                    @onclick="() => GoToPage(CurrentPage - 1)">
+                ‹
+            </button>
+            @foreach (var p in PageNumbers)
+            {
+                @if (p == -1)
+                {
+                    <span class="page-btn" style="pointer-events:none">…</span>
+                }
+                else
+                {
+                    <button class="page-btn @(p == CurrentPage ? "active" : "")"
+                            @onclick="() => GoToPage(p)">
+                        @p
+                    </button>
+                }
+            }
+            <button class="page-btn" disabled="@(CurrentPage == TotalPages)"
+                    @onclick="() => GoToPage(CurrentPage + 1)">
+                ›
+            </button>
+        </div>
+    }
+</div>
+
+<!-- ═══ TEAM DETAIL MODAL ═══ -->
+@if (ShowDetail && ActiveTeam is not null)
+{
+    <div class="modal-overlay open" @onclick="CloseDetail">
+        <div class="modal xlarge" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title">@ActiveTeam.Name</h2>
+                    <p class="modal-subtitle">
+                        @SpaceWords(ActiveTeam.Speciality) · @ActiveTeam.Province, @ActiveTeam.City
+                    </p>
+                </div>
+                <button class="modal-close" @onclick="CloseDetail">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-tabs">
+                <button class="tab @(DetailTab == "info" ? "active" : "")" @onclick='() => DetailTab = "info"'>Info</button>
+                <button class="tab @(DetailTab == "members" ? "active" : "")" @onclick="SwitchToMembers">Members</button>
+                <button class="tab @(DetailTab == "resources" ? "active" : "")" @onclick="SwitchToResources">Resources</button>
+            </div>
+
+            <div class="modal-body">
+                @if (DetailTab == "info")
+                {
+                    <div class="team-detail-header">
+                        <div class="team-detail-icon @SpecialityClass(ActiveTeam.Speciality)">
+                            <i class="fa-solid @SpecialityIcon(ActiveTeam.Speciality)"></i>
+                        </div>
+                        <div>
+                            <div class="team-detail-name">@ActiveTeam.Name</div>
+                            <div class="team-detail-meta">
+                                <span class="badge badge-@ActiveTeam.Status.ToLower()">@ActiveTeam.Status</span>
+                                @if (ActiveTeam.IsReadyForMission)
+                                {
+                                    <span class="badge badge-available">✓ Mission Ready</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <span class="info-label">Speciality</span>
+                            <span class="info-value">@SpaceWords(ActiveTeam.Speciality)</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Province</span>
+                            <span class="info-value">@ActiveTeam.Province</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">City</span>
+                            <span class="info-value">@ActiveTeam.City</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Leader</span>
+                            <span class="info-value">@(ActiveTeam.LeaderName ?? "—")</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Total Members</span>
+                            <span class="info-value">@ActiveTeam.MembersCount</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Active Members</span>
+                            <span class="info-value">@ActiveTeam.ActiveMembersCount</span>
+                        </div>
+                    </div>
+                }
+
+                @if (DetailTab == "members")
+                {
+                    <div class="section-toolbar">
+                        <span class="section-count">@Members.Count members</span>
+                        <button class="btn btn-sm btn-primary" @onclick="ShowAddMemberForm">
+                            <i class="fa-solid fa-user-plus"></i> Add Member
+                        </button>
+                    </div>
+                    @if (ShowMemberForm)
+                    {
+                        <div class="inline-form">
+                            <h4 class="inline-form-title">Add New Member</h4>
+                            <div class="form-grid two-col">
+                                <div class="form-group">
+                                    <label class="form-label">First Name *</label>
+                                    <input class="form-input" @bind="NewMember.FirstName" placeholder="First name…" />
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Last Name *</label>
+                                    <input class="form-input" @bind="NewMember.LastName" placeholder="Last name..." />
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Email *</label>
+                                    <input class="form-input" type="email" @bind="NewMember.Email" placeholder="email@domain.com" />
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Phone *</label>
+                                    <input class="form-input" @bind="NewMember.PhoneNumber" placeholder="+963…" />
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Job Title *</label>
+                                    <input class="form-input" @bind="NewMember.JobTitle" placeholder="e.g. Paramedic" />
+                                </div>
+                                <div class="form-group" style="justify-content:flex-end;padding-top:20px">
+                                    <label class="form-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                                        <input type="checkbox" @bind="NewMember.IsLeader" />
+                                        Set as Leader
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Photo</label>
+                                    <InputFile OnChange="OnPhotoSelected" />
+                                </div>
+                            </div>
+                            @if (!string.IsNullOrEmpty(MemberFormError))
+                            {
+                                <div class="api-error" style="margin-top:var(--sp-3)">
+                                    <i class="fa-solid fa-circle-exclamation"></i> @MemberFormError
+                                </div>
+                            }
+                            <div class="inline-form-actions">
+                                <button class="btn btn-ghost btn-sm" @onclick="() => ShowMemberForm = false">Cancel</button>
+                                <button class="btn btn-primary btn-sm" @onclick="SaveMember" disabled="@IsSavingMember">
+                                    @if (IsSavingMember)
+                                    {
+                                        <span class="spinner"></span>
+                                    }
+                                    else
+                                    {
+
+                                        <i class="fa-solid fa-check"></i>
+                                    }
+                                    Save
+                                </button>
+                            </div>
+                        </div>
+                    }
+                    @if (MembersLoading)
+                    {
+                        <div class="tab-loading"><span class="spinner"></span></div>
+                    }
+                    else if (!Members.Any())
+                    {
+                        <div class="empty-state">
+                            <i class="fa-solid fa-users empty-state-icon"></i>
+                            <div class="empty-state-title">No members yet</div>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var m in Members)
+                        {
+                            <div class="member-card @(m.IsLeader ? "leader" : "")">
+                                <div class="member-avatar" style="background: @AvatarColor(m.FullName)">
+                                    @if (!string.IsNullOrEmpty(m.PhotoUrl))
+                                    {
+                                        <img src="@m.PhotoUrl" alt="@m.FullName" />
+                                    }
+                                    else
+                                    {
+                                        @Initials(m.FullName)
+                                    }
+                                </div>
+                                <div class="member-info">
+                                    <div class="member-name">
+                                        @m.FullName
+                                        @if (m.IsLeader)
+                                        {
+                                            <i class="fa-solid fa-crown leader-crown"></i>
+                                        }
+                                    </div>
+                                    <div class="member-title">@m.JobTitle</div>
+                                </div>
+                                <span class="badge badge-@m.Status.ToLower()">@m.Status</span>
+                                <div class="member-actions">
+                                    @if (!m.IsLeader)
+                                    {
+                                        <button class="btn btn-xs btn-ghost" @onclick="() => SetLeader(m.Id)" title="Set as leader">
+                                            <i class="fa-solid fa-crown"></i>
+                                        </button>
+                                    }
+                                    @if (m.Status == "Active")
+                                    {
+                                        <button class="btn btn-xs btn-ghost" title="Deactivate Member" @onclick="() => DeActivateMember(m.Id)">
+                                            <i class="fa-solid fa-user-xmark"></i>
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-xs btn-ghost" title="Activate Member" @onclick="() => ActivateMember(m.Id)">
+                                            <i class="fa-solid fa-user-plus"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
+                }
+
+                @if (DetailTab == "resources")
+                {
+                    <div class="section-toolbar">
+                        <span class="section-count">@Resources.Count resources</span>
+                        <button class="btn btn-sm btn-primary" @onclick="ShowAddResourceForm">
+                            <i class="fa-solid fa-plus"></i> Add Resource
+                        </button>
+                    </div>
+                    @if (ShowResourceForm)
+                    {
+                        <div class="inline-form">
+                            <h4 class="inline-form-title">Add Resource</h4>
+                            <div class="form-grid two-col">
+                                <div class="form-group">
+                                    <label class="form-label">Resource Type *</label>
+                                    <select class="form-input" @bind="NewResource.ResourceType">
+                                        <option value="">Select type…</option>
+                                        @foreach (var r in ResourceTypes)
+                                        {
+                                            <option value="@r.Name">@r.Name</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Quantity *</label>
+                                    <input class="form-input" type="number" min="1" @bind="NewResource.Quantity" />
+                                </div>
+                            </div>
+                            @if (!string.IsNullOrEmpty(ResourceFormError))
+                            {
+                                <div class="api-error" style="margin-top:var(--sp-3)">
+                                    <i class="fa-solid fa-circle-exclamation"></i> @ResourceFormError
+                                </div>
+                            }
+                            <div class="inline-form-actions">
+                                <button class="btn btn-ghost btn-sm" @onclick="() => ShowResourceForm = false">Cancel</button>
+                                <button class="btn btn-primary btn-sm" @onclick="SaveResource" disabled="@IsSavingResource">
+                                    @if (IsSavingResource)
+                                    {
+                                        <span class="spinner"></span>
+                                    }
+                                    else
+                                    {
+
+                                        <i class="fa-solid fa-plus"></i>
+                                    }
+                                    Add
+                                </button>
+                            </div>
+                        </div>
+                    }
+                    @if (ResourcesLoading)
+                    {
+                        <div class="tab-loading"><span class="spinner"></span></div>
+                    }
+                    else if (!Resources.Any())
+                    {
+                        <div class="empty-state">
+                            <i class="fa-solid fa-box empty-state-icon"></i>
+                            <div class="empty-state-title">No resources assigned</div>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var r in Resources)
+                        {
+                            <div class="resource-row">
+                                <div class="resource-info">
+                                    <div class="resource-icon">@ResourceIcon(r.Type)</div>
+                                    <div>
+                                        <div class="resource-name">@SpaceWords(r.Type)</div>
+                                        <div class="resource-qty">
+                                            <span class="badge badge-@r.Status.ToLower()">@r.Status</span>
+                                            @if (r.IsConsumable)
+                                            {
+                                                <span class="consumable-tag">consumable</span>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="qty-controls">
+                                    <button class="qty-btn" @onclick="() => DecreaseResource(r)">
+                                        <i class="fa-solid fa-minus"></i>
+                                    </button>
+                                    <span class="qty-value">@r.Quantity</span>
+                                    <button class="qty-btn" @onclick="() => IncreaseResource(r)">
+                                        <i class="fa-solid fa-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                    }
+                }
+            </div>
+
+            <div class="detail-actions-row">
+                <button class="action-btn edit-btn" @onclick="() => EditTeam(ActiveTeam.Id)">
+                    <i class="fa-solid fa-pen-to-square"></i> Edit Team
+                </button>
+                @if (ActiveTeam.Status == "Active")
+                {
+                    <button class="action-btn deactivate-btn" @onclick="() => DeActivateTeam(ActiveTeam.Id)">
+                        <i class="fa-solid fa-ban"></i> Deactivate
+                    </button>
+                }
+                else if (ActiveTeam.Status == "InActive")
+                {
+                    <button class="action-btn activate-btn" @onclick="() => ActivateTeam(ActiveTeam.Id)">
+                        <i class="fa-solid fa-circle-check"></i> Activate
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ═══ EDIT TEAM MODAL ═══ -->
+@if (ShowEdit)
+{
+    <div class="modal-overlay open">
+        <div class="modal large">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title">Edit Team</h2>
+                    <p class="modal-subtitle">Update team information</p>
+                </div>
+                <button class="modal-close" @onclick="() => ShowEdit = false">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-grid two-col">
+                    <div class="form-group">
+                        <label class="form-label">Team Name</label>
+                        <input class="form-input" @bind="UpdateModel.Name" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Speciality</label>
+                        <select class="form-input" @bind="UpdateModel.Speciality">
+                            <option value="">Select speciality...</option>
+                            @foreach (var s in TeamSpecialities)
+                            {
+                                <option value="@s.Name">@s.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Province</label>
+                        <input class="form-input" @bind="UpdateModel.Province" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">City</label>
+                        <input class="form-input" @bind="UpdateModel.City" />
+                    </div>
+                </div>
+                @if (!string.IsNullOrEmpty(UpdateError))
+                {
+                    <div class="api-error">
+                        <i class="fa-solid fa-circle-exclamation"></i> @UpdateError
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" @onclick="() => ShowEdit = false">Cancel</button>
+                <button class="btn btn-primary" @onclick="SubmitEditTeam" disabled="@IsUpdating">
+                    @if (IsUpdating)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    else
+                    {
+
+                        <i class="fa-solid fa-check"></i>
+                    }
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ═══ CREATE TEAM MODAL ═══ -->
+@if (ShowCreate)
+{
+    <div class="modal-overlay open" @onclick="CloseCreateModal">
+        <div class="modal large" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title">Create Team</h2>
+                    <p class="modal-subtitle">Fill in the team details</p>
+                </div>
+                <button class="modal-close" @onclick="CloseCreateModal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-grid two-col">
+                    <div class="form-group">
+                        <label class="form-label">Team Name *</label>
+                        <input class="form-input" placeholder="e.g. Alpha Rescue Unit" @bind="CreateModel.Name" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Speciality *</label>
+                        <select class="form-input" @bind="CreateModel.Speciality">
+                            <option value="">Select speciality…</option>
+                            @foreach (var s in TeamSpecialities)
+                            {
+                                <option value="@s.Name">@s.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label class="form-label">Team Location *</label>
+                        <!-- Map renders here — JS initialises it in OnAfterRenderAsync -->
+                        <div id="createTeamMap" style="height:350px;width:100%;border-radius:8px;"></div>
+                        <div style="display:flex;gap:12px;margin-top:8px;">
+                            <input id="teamLat" class="form-input" placeholder="Latitude (click map)" readonly />
+                            <input id="teamLng" class="form-input" placeholder="Longitude (click map)" readonly />
+                        </div>
+                    </div>
+                </div>
+                @if (!string.IsNullOrEmpty(CreateError))
+                {
+                    <div class="api-error" style="margin-top:var(--sp-4)">
+                        <i class="fa-solid fa-circle-exclamation"></i> @CreateError
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" @onclick="CloseCreateModal">Cancel</button>
+                <button class="btn btn-primary" @onclick="SubmitCreateTeam" disabled="@IsCreating">
+                    @if (IsCreating)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    else
+                    {
+
+                        <i class="fa-solid fa-check"></i>
+                    }
+                    Create Team
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ═══ QUANTITY PROMPT MODAL ═══ -->
+@if (ShowQtyPrompt)
+{
+    <div class="modal-overlay open" @onclick="CancelQty">
+        <div class="modal" style="max-width:340px" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h2 class="modal-title">@QtyPromptTitle</h2>
+                <button class="modal-close" @onclick="CancelQty">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Quantity</label>
+                    <input class="form-input" type="number" min="1" @bind="QtyValue" @bind:event="oninput" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" @onclick="CancelQty">Cancel</button>
+                <button class="btn btn-primary" @onclick="ConfirmQty">Confirm</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+
+    // ── List state ──────────────────────────────────────────────────
+    private bool IsLoading = true;
+    private List<TeamResponse> Items = new();
+    private List<ReferenceItem> TeamStatuses = new();
+    private List<ReferenceItem> TeamSpecialities = new();
+    private List<ReferenceItem> ResourceTypes = new();
+
+    private string FilterSearch = "";
+    private string FilterStatus = "";
+    private string FilterSpeciality = "";
+    private string FilterProvince = "";
+
+    private const int PageSize = 9;
+    private int CurrentPage = 1;
+    private int TotalCount = 0;
+    private int TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
+    private int PagFrom => TotalCount == 0 ? 0 : (CurrentPage - 1) * PageSize + 1;
+    private int PagTo => Math.Min(CurrentPage * PageSize, TotalCount);
+
+    private IEnumerable<int> PageNumbers
+    {
+        get
+        {
+            int start = Math.Max(1, CurrentPage - 2);
+            int end = Math.Min(TotalPages, start + 4);
+            var list = Enumerable.Range(start, end - start + 1).ToList();
+            if (end < TotalPages) { list.Add(-1); list.Add(TotalPages); }
+            return list;
+        }
+    }
+
+    // ── Detail modal ────────────────────────────────────────────────
+    private bool ShowDetail = false;
+    private string DetailTab = "info";
+    private TeamResponse? ActiveTeam;
+
+    private bool MembersLoading = false;
+    private bool ResourcesLoading = false;
+    private List<TeamMemberResponse> Members = new();
+    private List<TeamResourceResponse> Resources = new();
+
+    private bool ShowMemberForm = false;
+    private bool IsSavingMember = false;
+    private string MemberFormError = "";
+    private AddMemberModel NewMember = new();
+
+    private bool ShowResourceForm = false;
+    private bool IsSavingResource = false;
+    private string ResourceFormError = "";
+    private AddTeamResourceRequest NewResource = new();
+
+    // ── Create modal ────────────────────────────────────────────────
+    private bool ShowCreate = false;
+    private bool IsCreating = false;
+    private string CreateError = "";
+    private CreateTeamRequest CreateModel = new();
+
+    // ── Qty prompt ──────────────────────────────────────────────────
+    private bool ShowQtyPrompt = false;
+    private string QtyPromptTitle = "";
+    private int QtyValue = 1;
+    private TeamResourceResponse? QtyTargetResource;
+    private bool QtyIsIncrease = true;
+    private TaskCompletionSource<int?>? QtyTcs;
+
+    // ── Edit modal ──────────────────────────────────────────────────
+    private bool ShowEdit = false;
+    private bool IsUpdating = false;
+    private string UpdateError = "";
+    private UpdateTeamRequest UpdateModel = new();
+
+    private IBrowserFile? SelectedPhoto;
+
+    private class AddMemberModel
+    {
+        public string FirstName { get; set; } = "";
+        public string LastName { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string PhoneNumber { get; set; } = "";
+        public string JobTitle { get; set; } = "";
+        public bool IsLeader { get; set; }
+    }
+
+    // ── Lifecycle ───────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(LoadRefDataAsync(), LoadTeamsAsync());
+    }
+
+    // KEY FIX: OnAfterRenderAsync watches for ShowCreate becoming true
+    // and initialises the map only after the modal div is in the DOM.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_shouldInitMap)
+        {
+            _shouldInitMap = false;
+            // Small delay so the modal CSS animation finishes painting the div
+            await Task.Delay(150);
+            await JS.InvokeVoidAsync("mapInterop.initCreateMap");
+        }
+    }
+
+    private bool _shouldInitMap = false;
+
+    // ── Data loaders ────────────────────────────────────────────────
+    private async Task LoadRefDataAsync()
+    {
+        var t = await ServiceApi.GetTeamStatusesAsync();
+        var s = await ServiceApi.GetTeamSpecialitiesAsync();
+        var r = await ServiceApi.GetResourceTypesAsync();
+        if (t.IsSuccess) TeamStatuses = t.Data;
+        if (s.IsSuccess) TeamSpecialities = s.Data;
+        if (r.IsSuccess) ResourceTypes = r.Data;
+    }
+
+    private async Task LoadTeamsAsync()
+    {
+        IsLoading = true;
+        StateHasChanged();
+
+        var result = await ServiceApi.GetTeamsAsync(
+            search: string.IsNullOrEmpty(FilterSearch) ? null : FilterSearch,
+            status: string.IsNullOrEmpty(FilterStatus) ? null : FilterStatus,
+            speciality: string.IsNullOrEmpty(FilterSpeciality) ? null : FilterSpeciality,
+            province: string.IsNullOrEmpty(FilterProvince) ? null : FilterProvince,
+            page: CurrentPage,
+            pageSize: PageSize
+        );
+
+        if (result.IsSuccess)
+        {
+            Items = result.Data.Items;
+            TotalCount = result.Data.TotalCount;
+        }
+
+        IsLoading = false;
+    }
+
+    private async Task OnFilterChanged()
+    {
+        CurrentPage = 1;
+        await LoadTeamsAsync();
+    }
+
+    private async Task GoToPage(int p)
+    {
+        if (p < 1 || p > TotalPages) return;
+        CurrentPage = p;
+        await LoadTeamsAsync();
+    }
+
+    // ── Detail modal ────────────────────────────────────────────────
+    private void OpenDetail(TeamResponse t)
+    {
+        ActiveTeam = t;
+        DetailTab = "info";
+        ShowMemberForm = false;
+        ShowResourceForm = false;
+        Members = new();
+        Resources = new();
+        ShowDetail = true;
+    }
+
+    private void CloseDetail()
+    {
+        ShowDetail = false;
+        ActiveTeam = null;
+    }
+
+    private async Task SwitchToMembers()
+    {
+        DetailTab = "members";
+        if (!Members.Any()) await LoadMembersAsync();
+    }
+
+    private async Task SwitchToResources()
+    {
+        DetailTab = "resources";
+        if (!Resources.Any()) await LoadResourcesAsync();
+    }
+
+    private async Task LoadMembersAsync()
+    {
+        if (ActiveTeam is null) return;
+        MembersLoading = true;
+        var result = await ServiceApi.GetTeamMembersAsync(ActiveTeam.Id, pageSize: 50);
+        if (result.IsSuccess) Members = result.Data.Items;
+        MembersLoading = false;
+    }
+
+    private async Task LoadResourcesAsync()
+    {
+        if (ActiveTeam is null) return;
+        ResourcesLoading = true;
+        var result = await ServiceApi.GetTeamResourcesAsync(ActiveTeam.Id, pageSize: 50);
+        if (result.IsSuccess) Resources = result.Data.Items;
+        ResourcesLoading = false;
+    }
+
+    // ── Member actions ──────────────────────────────────────────────
+    private void ShowAddMemberForm()
+    {
+        NewMember = new();
+        MemberFormError = "";
+        ShowMemberForm = true;
+    }
+
+    private async Task SaveMember()
+    {
+        if (ActiveTeam is null) return;
+        MemberFormError = "";
+
+        if (string.IsNullOrEmpty(NewMember.FirstName) || string.IsNullOrEmpty(NewMember.LastName) ||
+            string.IsNullOrEmpty(NewMember.Email) || string.IsNullOrEmpty(NewMember.PhoneNumber) ||
+            string.IsNullOrEmpty(NewMember.JobTitle))
+        {
+            MemberFormError = "All fields are required.";
+            return;
+        }
+
+        IsSavingMember = true;
+        var result = await ServiceApi.AddTeamMemberMultipartAsync(
+            ActiveTeam.Id, NewMember.FirstName, NewMember.LastName,
+            NewMember.Email, NewMember.PhoneNumber, NewMember.JobTitle,
+            NewMember.IsLeader, SelectedPhoto);
+
+        if (result.IsSuccess) { ShowMemberForm = false; await LoadMembersAsync(); }
+        else MemberFormError = result.ErrorMessage;
+        IsSavingMember = false;
+    }
+
+    private async Task SetLeader(Guid memberId)
+    {
+        if (ActiveTeam is null) return;
+        var result = await ServiceApi.SetTeamLeaderAsync(ActiveTeam.Id, memberId);
+        if (result.IsSuccess) await LoadMembersAsync();
+    }
+
+    private async Task DeActivateMember(Guid memberId)
+    {
+        if (ActiveTeam is null) return;
+        var result = await ServiceApi.DeActivateTeamMemberAsync(ActiveTeam.Id, memberId);
+        if (result.IsSuccess) await LoadMembersAsync();
+    }
+
+    private async Task ActivateMember(Guid memberId)
+    {
+        if (ActiveTeam is null) return;
+        var result = await ServiceApi.ActivateTeamMemberAsync(ActiveTeam.Id, memberId);
+        if (result.IsSuccess) await LoadMembersAsync();
+    }
+
+    private async Task ActivateTeam(Guid teamId)
+    {
+        if (ActiveTeam is null) return;
+        var result = await ServiceApi.ActivateTeamAsync(ActiveTeam.Id);
+        if (result.IsSuccess) await LoadMembersAsync();
+    }
+
+    private async Task DeActivateTeam(Guid teamId)
+    {
+        if (ActiveTeam is null) return;
+        var result = await ServiceApi.DeActivateTeamAsync(ActiveTeam.Id);
+        if (result.IsSuccess) await LoadMembersAsync();
+    }
+
+    // ── Resource actions ────────────────────────────────────────────
+    private void ShowAddResourceForm()
+    {
+        NewResource = new() { Quantity = 1 };
+        ResourceFormError = "";
+        ShowResourceForm = true;
+    }
+
+    private async Task SaveResource()
+    {
+        if (ActiveTeam is null) return;
+        ResourceFormError = "";
+        if (string.IsNullOrEmpty(NewResource.ResourceType)) { ResourceFormError = "Select a resource type."; return; }
+        if (NewResource.Quantity < 1) { ResourceFormError = "Quantity must be at least 1."; return; }
+
+        IsSavingResource = true;
+        var result = await ServiceApi.AddTeamResourceAsync(ActiveTeam.Id, NewResource);
+        if (result.IsSuccess) { ShowResourceForm = false; await LoadResourcesAsync(); }
+        else ResourceFormError = result.ErrorMessage;
+        IsSavingResource = false;
+    }
+
+    private async Task IncreaseResource(TeamResourceResponse r)
+    {
+        var qty = await PromptQtyAsync($"Increase {SpaceWords(r.Type)} by:", true, r);
+        if (qty is null || ActiveTeam is null) return;
+        var result = await ServiceApi.IncreaseResourceQuantityAsync(ActiveTeam.Id, r.Id, qty.Value);
+        if (result.IsSuccess) await LoadResourcesAsync();
+    }
+
+    private async Task DecreaseResource(TeamResourceResponse r)
+    {
+        if (r.Quantity <= 0) return;
+        await PromptQtyAsync($"Decrease {SpaceWords(r.Type)} by:", false, r);
+        await LoadResourcesAsync();
+    }
+
+    private async Task<int?> PromptQtyAsync(string title, bool isIncrease, TeamResourceResponse r)
+    {
+        QtyPromptTitle = title;
+        QtyValue = 1;
+        QtyTargetResource = r;
+        QtyIsIncrease = isIncrease;
+        QtyTcs = new TaskCompletionSource<int?>();
+        ShowQtyPrompt = true;
+        StateHasChanged();
+        return await QtyTcs.Task;
+    }
+
+    private void ConfirmQty()
+    {
+        ShowQtyPrompt = false;
+        QtyTcs?.TrySetResult(QtyValue > 0 ? QtyValue : null);
+    }
+
+    private void CancelQty()
+    {
+        ShowQtyPrompt = false;
+        QtyTcs?.TrySetResult(null);
+    }
+
+    // ── Create team ─────────────────────────────────────────────────
+    private void OpenCreateModal()
+    {
+        CreateModel = new();
+        CreateError = "";
+        ShowCreate = true;
+        _shouldInitMap = true;   // triggers OnAfterRenderAsync to init the map
+    }
+
+    private void CloseCreateModal()
+    {
+        ShowCreate = false;
+        CreateError = "";
+    }
+
+    private async Task SubmitCreateTeam()
+    {
+        CreateError = "";
+
+        // Read lat/lng from the map input fields via JS
+        var lat = await JS.InvokeAsync<double>("window.getTeamLat");
+        var lng = await JS.InvokeAsync<double>("window.getTeamLng");
+        CreateModel.Latitude = lat;
+        CreateModel.Longitude = lng;
+
+        if (string.IsNullOrEmpty(CreateModel.Name))
+        { CreateError = "Team name is required."; return; }
+        if (string.IsNullOrEmpty(CreateModel.Speciality))
+        { CreateError = "Speciality is required."; return; }
+        if (CreateModel.Latitude == 0 && CreateModel.Longitude == 0)
+        { CreateError = "Please click the map to pick a location."; return; }
+
+        IsCreating = true;
+        var result = await ServiceApi.CreateTeamAsync(CreateModel);
+        if (result.IsSuccess)
+        {
+            ShowCreate = false;
+            CurrentPage = 1;
+            await LoadTeamsAsync();
+        }
+        else
+        {
+            CreateError = result.ErrorMessage;
+        }
+        IsCreating = false;
+    }
+
+    // ── Edit team ───────────────────────────────────────────────────
+    private void EditTeam(Guid teamId)
+    {
+        if (ActiveTeam is null) return;
+        UpdateModel = new UpdateTeamRequest
+        {
+            Name = ActiveTeam.Name,
+            Province = ActiveTeam.Province,
+            Speciality = ActiveTeam.Speciality,
+            City = ActiveTeam.City
+        };
+        UpdateError = "";
+        ShowEdit = true;
+    }
+
+    private async Task SubmitEditTeam()
+    {
+        if (ActiveTeam is null) return;
+        UpdateError = "";
+        IsUpdating = true;
+
+        var result = await ServiceApi.UpdateTeamAsync(ActiveTeam.Id, UpdateModel);
+        if (result.IsSuccess)
+        {
+            ShowEdit = false;
+            await LoadTeamsAsync();
+            var updated = Items.FirstOrDefault(x => x.Id == ActiveTeam.Id);
+            if (updated is not null) ActiveTeam = updated;
+        }
+        else
+        {
+            UpdateError = result.ErrorMessage;
+        }
+        IsUpdating = false;
+    }
+
+    private void OnPhotoSelected(InputFileChangeEventArgs e) => SelectedPhoto = e.File;
+
+    // ── Display helpers ─────────────────────────────────────────────
+    private static string SpaceWords(string s) =>
+        System.Text.RegularExpressions.Regex.Replace(s ?? "", "([A-Z])", " $1").Trim();
+
+    private static string SpecialityIcon(string s) => s?.ToLower() switch
+    {
+        "firefighting" or "fire" => "fa-fire-extinguisher",
+        "medical" => "fa-kit-medical",
+        "searchandrescue" => "fa-magnifying-glass",
+        "logistics" => "fa-truck",
+        "communications" => "fa-tower-broadcast",
+        "engineering" => "fa-helmet-safety",
+        _ => "fa-people-group"
+    };
+
+    private static string SpecialityClass(string s) => s?.ToLower() switch
+    {
+        "firefighting" or "fire" => "spec-fire",
+        "medical" => "spec-medical",
+        "searchandrescue" => "spec-search",
+        "logistics" => "spec-logistics",
+        "communications" => "spec-comms",
+        "engineering" => "spec-engineering",
+        _ => "spec-default"
+    };
+
+    private static string ResourceIcon(string type) => type?.ToLower() switch
+    {
+        var t when t?.Contains("ambulan") == true => "🚑",
+        var t when t?.Contains("fire") == true => "🚒",
+        var t when t?.Contains("water") == true => "💧",
+        var t when t?.Contains("food") == true => "🍱",
+        var t when t?.Contains("tent") == true => "⛺",
+        var t when t?.Contains("medic") == true => "💊",
+        _ => "📦"
+    };
+
+    private static string AvatarColor(string name)
+    {
+        var colors = new[] { "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4" };
+        int hash = name?.Sum(c => (int)c) ?? 0;
+        return colors[Math.Abs(hash) % colors.Length];
+    }
+
+    private static string Initials(string name)
+    {
+        var parts = (name ?? "?").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            ? $"{parts[0][0]}{parts[^1][0]}".ToUpper()
+            : name?[..Math.Min(2, name.Length)].ToUpper() ?? "?";
+    }
+}

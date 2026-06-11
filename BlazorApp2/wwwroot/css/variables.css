@@ -1,0 +1,90 @@
+﻿/* ═══════════════════════════════════════════════════════════════
+   DERS — Design Tokens
+   wwwroot/css/variables.css
+   Referenced by index.html — applies to ALL pages.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+    --font-display: 'Syne', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    /* Spacing scale */
+    --sp-1: 4px;
+    --sp-2: 8px;
+    --sp-3: 12px;
+    --sp-4: 16px;
+    --sp-5: 20px;
+    --sp-6: 24px;
+    --sp-8: 32px;
+    --sp-10: 40px;
+    --sp-12: 48px;
+    /* Border radii */
+    --r-sm: 6px;
+    --r-md: 10px;
+    --r-lg: 16px;
+    --r-xl: 24px;
+    --r-full: 9999px;
+    /* Transitions */
+    --t-fast: 150ms ease;
+    --t-normal: 250ms ease;
+    --t-slow: 400ms ease;
+    /* Layout */
+    --sidebar-width: 240px;
+    --sidebar-collapsed: 60px;
+    --topbar-h: 60px;
+    /* Semantic colours */
+    --color-critical: #ff4d4f;
+    --color-warning: #faad14;
+    --color-success: #52c41a;
+    --color-info: #1890ff;
+    --color-critical-bg: rgba(255,77,79,.12);
+    --color-warning-bg: rgba(250,173,20,.12);
+    --color-success-bg: rgba(82,196,26,.12);
+    --color-info-bg: rgba(24,144,255,.12);
+}
+
+/* ── Dark theme (default) ── */
+[data-theme="dark"] {
+    --bg-base: #0d0f14;
+    --bg-surface: #141720;
+    --bg-surface-2: #1a1e2a;
+    --bg-surface-3: #1f2436;
+    --bg-overlay: rgba(13,15,20,.88);
+    --border-color: rgba(255,255,255,.07);
+    --border-color-strong: rgba(255,255,255,.14);
+    --text-primary: #e8eaf0;
+    --text-secondary: #8a92a8;
+    --text-muted: #525b73;
+    --accent-primary: #3b82f6;
+    --accent-primary-hover: #2563eb;
+    --accent-glow: rgba(59,130,246,.2);
+    --shadow-sm: 0 1px 3px rgba(0,0,0,.4);
+    --shadow-md: 0 4px 16px rgba(0,0,0,.5);
+    --shadow-lg: 0 12px 40px rgba(0,0,0,.6);
+    --shadow-glow: 0 0 20px rgba(59,130,246,.2);
+    --scrollbar-track: #141720;
+    --scrollbar-thumb: #2a2f42;
+}
+
+/* ── Light theme ── */
+[data-theme="light"] {
+    --bg-base: #f0f2f8;
+    --bg-surface: #fff;
+    --bg-surface-2: #f7f8fc;
+    --bg-surface-3: #eef0f7;
+    --bg-overlay: rgba(240,242,248,.9);
+    --border-color: rgba(0,0,0,.07);
+    --border-color-strong: rgba(0,0,0,.14);
+    --text-primary: #1a1e2a;
+    --text-secondary: #4a5270;
+    --text-muted: #9199b0;
+    --accent-primary: #2563eb;
+    --accent-primary-hover: #1d4ed8;
+    --accent-glow: rgba(37,99,235,.18);
+    --shadow-sm: 0 1px 3px rgba(0,0,0,.08);
+    --shadow-md: 0 4px 16px rgba(0,0,0,.1);
+    --shadow-lg: 0 12px 40px rgba(0,0,0,.13);
+    --shadow-glow: 0 0 20px rgba(37,99,235,.15);
+    --scrollbar-track: #f0f2f8;
+    --scrollbar-thumb: #c8cdd8;
+}
