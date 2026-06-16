@@ -101,20 +101,7 @@
                                     <a href="/admin/disasters/@d.Id" class="btn btn-xs btn-ghost" title="View details">
                                         <i class="fa-solid fa-eye"></i> Details
                                     </a>
-                                    @if (d.Latitude != 0 && d.Longitude != 0)
-                                    {
-                                        <a href="/admin/map?disasterId=@d.Id"
-                                           class="btn btn-xs btn-ghost"
-                                           title="View on map">
-                                            <i class="fa-solid fa-map-pin"></i>
-                                        </a>
-                                    }
-                                    else
-                                    {
-                                        <button class="btn btn-xs btn-ghost" disabled title="No coordinates">
-                                            <i class="fa-solid fa-map-pin"></i>
-                                        </button>
-                                    }
+                                 
                                 </div>
                             </td>
                         </tr>
@@ -177,7 +164,7 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Type *</label>
-                        <select class="form-input" @bind="CreateModel.Type">
+                        <select class="form-input" @bind="CreateModel.DisasterType">
                             <option value="">Select type…</option>
                             @foreach (var t in DisasterTypes)
                             {

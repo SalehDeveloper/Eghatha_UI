@@ -8,7 +8,7 @@
         <h1 class="page-title">Accounts</h1>
         <p class="page-subtitle">User management and access control</p>
     </div>
-  
+
 </div>
 <!-- ═══ STATS GRID ═══ -->
 <div class="stats-grid">
@@ -26,7 +26,7 @@
             <span class="stat-icon"><i class="fa-solid fa-clock"></i></span>
         </div>
         <div class="stat-value">@AccountStatisticsResponse.InActiveUsers</div>
-        
+
     </div>
     <div class="stat-card success">
         <div class="stat-card-header">
@@ -34,7 +34,7 @@
             <span class="stat-icon"><i class="fa-solid fa-users"></i></span>
         </div>
         <div class="stat-value">@AccountStatisticsResponse.ActiveUsers</div>
-        
+
     </div>
     <div class="stat-card info">
         <div class="stat-card-header">
@@ -42,7 +42,7 @@
             <span class="stat-icon"><i class="fa-solid fa-user-shield"></i></span>
         </div>
         <div class="stat-value">@AccountStatisticsResponse.TotalAdmins</div>
-      
+
     </div>
 </div>
 
@@ -224,11 +224,11 @@
 
 
 @code {
-    private List<AccountResponse> Items{ get; set;} = new() ;
-    private AccountStatisticsResponse AccountStatisticsResponse { get; set; }=new();
+    private List<AccountResponse> Items { get; set; } = new();
+    private AccountStatisticsResponse AccountStatisticsResponse { get; set; } = new();
 
-    private List<string> Roles { get; set; } = new() { "Admin", "TeamMember" , "Volunteer" };
-    private List<string> Statuses { get; set; } = new() { "Active", "InActive"};
+    private List<string> Roles { get; set; } = new() { "Admin", "TeamMember", "Volunteer" };
+    private List<string> Statuses { get; set; } = new() { "Active", "InActive" };
 
     private string SearchTerm = "";
     private string FilterRole = "";
@@ -271,7 +271,6 @@
     private async Task LoadAccountssAsync()
     {
         IsLoading = true;
-        StateHasChanged();
 
         var Active = FilterStatus switch
         {

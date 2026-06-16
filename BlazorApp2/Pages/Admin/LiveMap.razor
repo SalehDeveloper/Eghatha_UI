@@ -5,6 +5,7 @@
 @inject IJSRuntime JS
 @inject ServiceApi Api
 @inject AdminHubService Hub
+@inject NavigationManager Navigation
 @implements IAsyncDisposable
 
 <!-- ═══════════════════════════════ PAGE HEADER ═══════════════════════════════ -->
@@ -173,6 +174,9 @@
 
     private bool _mapReady = false;
 
+    // Set from ?disasterId= query param — consumed once after data loads
+    private Guid? _pendingFlyToId = null;
+
     /* ── Lifecycle ──────────────────────────────────────────────────── */
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -181,6 +185,12 @@
 
         await JS.InvokeVoidAsync("DersLiveMap.init", "ders-live-map");
         _mapReady = true;
+
+        // Read optional ?disasterId= query param coming from "View on Map"
+        var uri = new Uri(Navigation.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        if (Guid.TryParse(query["disasterId"], out var flyId))
+            _pendingFlyToId = flyId;
 
         await LoadInitialDataAsync();
         WireHub();
@@ -191,7 +201,7 @@
     private async Task LoadInitialDataAsync()
     {
         // Load disasters
-        var disasterResult = await Api.GetDisastersAsync(status:"InProgress");
+        var disasterResult = await Api.GetDisastersAsync(status: "InProgress");
         if (disasterResult.IsSuccess && disasterResult.Data is not null)
         {
             foreach (var d in disasterResult.Data.Items)
@@ -246,6 +256,15 @@
 
                 await PushTeamPinAsync(pos);
             }
+        }
+
+        // If we arrived via "View on Map", fly to that disaster now
+        if (_pendingFlyToId.HasValue)
+        {
+            var target = _disasters.FirstOrDefault(d => d.Id == _pendingFlyToId.Value);
+            if (target is not null)
+                await FlyToDisaster(target);
+            _pendingFlyToId = null;
         }
 
         StateHasChanged();

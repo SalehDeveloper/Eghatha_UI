@@ -1,0 +1,368 @@
+﻿@page "/report-disaster"
+@layout EmptyLayout
+@inject BlazorApp2.Services.ServiceApi ServiceApi
+@inject NavigationManager NavManager
+@inject IJSRuntime JS
+@using BlazorApp2.Requests
+
+<div class="report-root">
+
+    <!-- ── Top bar ── -->
+    <header class="report-topbar">
+        <a href="/" class="back-link">
+            <i class="fa-solid fa-arrow-left"></i>
+            Back to Home
+        </a>
+        <div class="nav-brand">
+            <span class="brand-icon"><i class="fa-solid fa-shield-halved"></i></span>
+            <span class="brand-name">DERS</span>
+        </div>
+        <div style="width: 120px;"></div> <!-- spacer to centre brand -->
+    </header>
+
+    <!-- ── Page content ── -->
+    <main class="report-main">
+
+        @if (Submitted)
+        {
+            <!-- ── SUCCESS STATE ── -->
+            <div class="success-wrap">
+                <div class="success-icon">
+                    <i class="fa-solid fa-circle-check"></i>
+                </div>
+                <h1 class="success-title">Report Received</h1>
+                <p class="success-msg">
+                    Your disaster report has been submitted and is now being reviewed
+                    by our response team. Stay safe.
+                </p>
+                <div class="success-ref font-mono">
+                    Ref: <strong>@SubmittedRef</strong>
+                </div>
+                <div class="success-actions">
+                    <a href="/report-disaster" class="btn-form btn-form-primary" @onclick="ResetForm">
+                        <i class="fa-solid fa-plus"></i> Submit Another Report
+                    </a>
+                    <a href="/" class="btn-form btn-form-ghost">
+                        <i class="fa-solid fa-house"></i> Go Home
+                    </a>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="report-layout">
+
+                <!-- ── Left: form ── -->
+                <div class="report-form-col">
+                    <div class="report-header">
+                        <div class="report-eyebrow">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            Emergency Reporting
+                        </div>
+                        <h1 class="report-title">Report a Disaster</h1>
+                        <p class="report-subtitle">
+                            No login required. Fill in as much detail as you can —
+                            every piece of information helps responders act faster.
+                        </p>
+                    </div>
+
+                    <!-- SECTION 1: Incident Details -->
+                    <div class="form-section">
+                        <div class="form-section-header">
+                            <span class="form-section-num">01</span>
+                            <span class="form-section-label">Incident Details</span>
+                        </div>
+                        <div class="form-grid two-col">
+                            <div class="form-group full-col">
+                                <label class="form-label">Title <span class="required">*</span></label>
+                                <input class="form-input @(Errors.ContainsKey("Title") ? "input-error" : "")"
+                                       placeholder="e.g. Flooding in central Damascus…"
+                                       @bind="Model.Title"
+                                       @bind:event="oninput" />
+                                @if (Errors.ContainsKey("Title"))
+                                {
+                                    <span class="field-error">@Errors["Title"]</span>
+                                }
+                            </div>
+                            <div class="form-group full-col">
+                                <label class="form-label">Type <span class="required">*</span></label>
+                                <select class="form-input @(Errors.ContainsKey("Type") ? "input-error" : "")"
+                                        @bind="Model.DisasterType">
+                                    <option value="">Select disaster type…</option>
+                                    @foreach (var t in DisasterTypes)
+                                    {
+                                        <option value="@t.Name">@t.Name</option>
+                                    }
+                                </select>
+                                @if (Errors.ContainsKey("Type"))
+                                {
+                                    <span class="field-error">@Errors["Type"]</span>
+                                }
+                            </div>
+                            <div class="form-group full-col">
+                                <label class="form-label">Description <span class="required">*</span></label>
+                                <textarea class="form-input @(Errors.ContainsKey("Description") ? "input-error" : "")"
+                                          rows="4"
+                                          placeholder="Describe the situation in as much detail as possible: what happened, how many people are affected, immediate dangers…"
+                                          @bind="Model.Description"></textarea>
+                                @if (Errors.ContainsKey("Description"))
+                                {
+                                    <span class="field-error">@Errors["Description"]</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECTION 2: Location -->
+                    <div class="form-section">
+                        <div class="form-section-header">
+                            <span class="form-section-num">02</span>
+                            <span class="form-section-label">Location</span>
+                        </div>
+                        <p class="form-section-desc">
+                            Click anywhere on the map to pin the disaster location. You can also fill in the address fields manually.
+                        </p>
+                        <div class="form-grid two-col">
+                            <!-- Interactive map -->
+                            <div class="form-group full-col">
+                                <label class="form-label">Pin on Map <span class="required">*</span></label>
+                                <div id="reportDisasterMap" style="height:320px;width:100%;border-radius:8px;border:1px solid var(--border-color);"></div>
+                                <div style="display:flex;gap:12px;margin-top:8px;">
+                                    <input id="disasterLat"
+                                           class="form-input font-mono @(Errors.ContainsKey("Location") ? "input-error" : "")"
+                                           placeholder="Latitude (click map)"
+                                           readonly />
+                                    <input id="disasterLng"
+                                           class="form-input font-mono @(Errors.ContainsKey("Location") ? "input-error" : "")"
+                                           placeholder="Longitude (click map)"
+                                           readonly />
+                                </div>
+                                @if (Errors.ContainsKey("Location"))
+                                {
+                                    <span class="field-error">@Errors["Location"]</span>
+                                }
+                            </div>
+                            <!-- Optional address fields -->
+                          
+                        </div>
+                    </div>
+
+                    <!-- SECTION 3: Reporter Identity -->
+                    <div class="form-section">
+                        <div class="form-section-header">
+                            <span class="form-section-num">03</span>
+                            <span class="form-section-label">Your Information</span>
+                        </div>
+                        <p class="form-section-desc">
+                            Your details are confidential and used only by the response team to follow up.
+                        </p>
+                        <div class="form-grid two-col">
+                            <div class="form-group">
+                                <label class="form-label">Full Name <span class="required">*</span></label>
+                                <input class="form-input @(Errors.ContainsKey("ReporterName") ? "input-error" : "")"
+                                       placeholder="Your full name…"
+                                       @bind="Model.ReporterName" />
+                                @if (Errors.ContainsKey("ReporterName"))
+                                {
+                                    <span class="field-error">@Errors["ReporterName"]</span>
+                                }
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Phone Number <span class="required">*</span></label>
+                                <input class="form-input @(Errors.ContainsKey("ReporterPhone") ? "input-error" : "")"
+                                       placeholder="+963…"
+                                       @bind="Model.ReporterPhone" />
+                                @if (Errors.ContainsKey("ReporterPhone"))
+                                {
+                                    <span class="field-error">@Errors["ReporterPhone"]</span>
+                                }
+                            </div>
+                            <div class="form-group full-col">
+                                <label class="form-label">National ID <span class="required">*</span></label>
+                                <input class="form-input font-mono @(Errors.ContainsKey("ReporterNationalId") ? "input-error" : "")"
+                                       placeholder="Your national ID number…"
+                                       @bind="Model.ReporterNationalId" />
+                                @if (Errors.ContainsKey("ReporterNationalId"))
+                                {
+                                    <span class="field-error">@Errors["ReporterNationalId"]</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- API error -->
+                    @if (!string.IsNullOrEmpty(ApiError))
+                    {
+                        <div class="api-error">
+                            <i class="fa-solid fa-circle-exclamation"></i>
+                            @ApiError
+                        </div>
+                    }
+
+                    <!-- Submit -->
+                    <div class="form-submit-row">
+                        <p class="submit-note">
+                            <i class="fa-solid fa-lock"></i>
+                            Your report is encrypted and handled by verified responders only.
+                        </p>
+                        <button class="btn-form btn-form-primary btn-form-lg"
+                                @onclick="SubmitReport"
+                                disabled="@IsSubmitting">
+                            @if (IsSubmitting)
+                            {
+                                <span class="spinner"></span>
+                                <span>Submitting…</span>
+                            }
+                            else
+                            {
+                                <i class="fa-solid fa-paper-plane"></i>
+                                <span>Submit Report</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ── Right: info panel ── -->
+                <aside class="report-info-col">
+                    <div class="info-card">
+                        <div class="info-icon">
+                            <i class="fa-solid fa-clock"></i>
+                        </div>
+                        <h3 class="info-title">What happens next?</h3>
+                        <ol class="info-steps">
+                            <li>Your report is received and assigned a tracking ID.</li>
+                            <li>A response coordinator reviews and verifies the incident.</li>
+                            <li>Volunteers and emergency teams are notified and dispatched.</li>
+                            <li>Status updates track the incident to resolution.</li>
+                        </ol>
+                    </div>
+
+                    <div class="info-card info-card-warning">
+                        <div class="info-icon info-icon-warning">
+                            <i class="fa-solid fa-phone"></i>
+                        </div>
+                        <h3 class="info-title">Immediate danger?</h3>
+                        <p class="info-text">
+                            If lives are at immediate risk, call emergency services first.
+                            This form is for coordination and tracking — not a substitute
+                            for emergency calls.
+                        </p>
+                        <div class="emergency-number">
+                            <span class="emergency-label">Syria Civil Defence</span>
+                            <span class="emergency-phone font-mono">113</span>
+                        </div>
+                    </div>
+
+                    <div class="info-card">
+                        <div class="info-icon info-icon-volunteer">
+                            <i class="fa-solid fa-hands-helping"></i>
+                        </div>
+                        <h3 class="info-title">Want to help?</h3>
+                        <p class="info-text">
+                            Volunteers are always needed. Register once and be ready when
+                            your province needs you.
+                        </p>
+                        <a href="/volunteer/register" class="btn-form btn-form-ghost btn-form-sm" style="margin-top:4px">
+                            <i class="fa-solid fa-user-plus"></i> Register as Volunteer
+                        </a>
+                    </div>
+                </aside>
+            </div>
+        }
+    </main>
+</div>
+
+@code {
+
+    // ── Form model ─────────────────────────────────────────────────
+    private CreateDisasterRequest Model = new();
+    private Dictionary<string, string> Errors = new();
+    private string ApiError = "";
+    private bool IsSubmitting = false;
+    private bool Submitted = false;
+    private string SubmittedRef = "";
+
+    // ── Reference data ─────────────────────────────────────────────
+    private List<BlazorApp2.Responses.ReferenceItem> DisasterTypes = new();
+
+    private static readonly string[] SyrianProvinces =
+    {
+        "Damascus", "Rif Dimashq", "Aleppo", "Homs", "Hama", "Latakia",
+        "Tartus", "Deir ez-Zor", "Raqqa", "Hasaka", "Daraa", "As-Suwayda",
+        "Quneitra", "Idlib"
+    };
+
+    // ── Lifecycle ──────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await ServiceApi.GetDisasterTypesAsync();
+        if (result.IsSuccess) DisasterTypes = result.Data;
+    }
+
+    private bool _shouldInitMap = true;   // init map on first render
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_shouldInitMap && !Submitted)
+        {
+            _shouldInitMap = false;
+            await Task.Delay(150);   // let the DOM paint before Leaflet attaches
+            await JS.InvokeVoidAsync("mapInterop.initDisasterMap");
+        }
+    }
+
+    // ── Validation ─────────────────────────────────────────────────
+    private bool Validate()
+    {
+        Errors = new();
+        if (string.IsNullOrWhiteSpace(Model.Title)) Errors["Title"] = "Title is required.";
+        if (string.IsNullOrWhiteSpace(Model.DisasterType)) Errors["Type"] = "Please select a disaster type.";
+        if (string.IsNullOrWhiteSpace(Model.Description)) Errors["Description"] = "Please describe the incident.";
+        if (Model.Latitude == 0 && Model.Longitude == 0) Errors["Location"] = "Please click the map to pin the disaster location.";
+        if (string.IsNullOrWhiteSpace(Model.ReporterName)) Errors["ReporterName"] = "Your name is required.";
+        if (string.IsNullOrWhiteSpace(Model.ReporterPhone)) Errors["ReporterPhone"] = "Phone number is required.";
+        if (string.IsNullOrWhiteSpace(Model.ReporterNationalId)) Errors["ReporterNationalId"] = "National ID is required.";
+        return Errors.Count == 0;
+    }
+
+    // ── Submit ─────────────────────────────────────────────────────
+    private async Task SubmitReport()
+    {
+        ApiError = "";
+
+        // Read lat/lng from the map input fields via JS (mirrors Teams.razor pattern)
+        var lat = await JS.InvokeAsync<double>("window.getDisasterLat");
+        var lng = await JS.InvokeAsync<double>("window.getDisasterLng");
+        Model.Latitude = lat;
+        Model.Longitude = lng;
+
+        if (!Validate()) return;
+
+        IsSubmitting = true;
+        StateHasChanged();
+
+        var result = await ServiceApi.CreateDisasterAsync(Model);
+
+        if (result.IsSuccess)
+        {
+            SubmittedRef = result.Data?.Id.ToString()[..8].ToUpper() ?? "—";
+            Submitted = true;
+        }
+        else
+        {
+            ApiError = result.ErrorDetail ?? "Something went wrong. Please try again.";
+        }
+
+        IsSubmitting = false;
+    }
+
+    private void ResetForm()
+    {
+        Model = new();
+        Errors = new();
+        ApiError = "";
+        Submitted = false;
+        SubmittedRef = "";
+        _shouldInitMap = true;   // re-init map when form reappears
+    }
+}

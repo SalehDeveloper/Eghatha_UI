@@ -8,7 +8,7 @@ namespace BlazorApp2.Requests
     {
         public string Title { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
-        public string Type { get; set; } = string.Empty;
+        public string DisasterType { get; set; } = string.Empty;
         public string? CustomTypeDescription { get; set; }
         public string ReporterName { get; set; } = string.Empty;
         public string ReporterPhone { get; set; } = string.Empty;

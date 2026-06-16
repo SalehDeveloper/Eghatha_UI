@@ -43,31 +43,40 @@ else
                 <button class="btn btn-primary" @onclick="OpenDispatch">
                     <i class="fa-solid fa-paper-plane"></i> Dispatch Resources
                 </button>
-                
+
             }
+
           
-           
-                <a href="/admin/map?disasterId=@Detail.Id"
-                   class="btn btn-map">
-                    <i class="fa-solid fa-map-location-dot"></i>
-                    View on Map
+            @if (Detail.Status == "InProgress")
+            {
+                <a href="/admin/map?disasterId=@Detail.Id" class="btn btn-map">
+                    <i class="fa-solid fa-map-location-dot"></i> View on Map
                 </a>
-            
+            }
+            else if (Detail.Latitude != 0 || Detail.Longitude != 0)
+            {
+                <button class="btn btn-map" @onclick="SwitchToMap">
+                    <i class="fa-solid fa-map-location-dot"></i> View on Map
+                </button>
+            }
+
         </div>
     </div>
 
 
     <!-- ── TABS ── -->
     <div class="tabs-bar">
-        <button class="tab @(ActiveTab == "overview" ? "active" : "")" @onclick='() => ActiveTab = "overview"'>Overview</button>
-        <button class="tab @(ActiveTab == "teams" ? "active" : "")" @onclick='() => ActiveTab = "teams"'>Teams</button>
-        <button class="tab @(ActiveTab == "resources" ? "active" : "")" @onclick='() => ActiveTab = "resources"'>Resources</button>
-        <button class="tab @(ActiveTab == "affected" ? "active" : "")" @onclick='() => ActiveTab = "affected"'>Affected People</button>
-        <button class="tab @(ActiveTab == "timeline" ? "active" : "")" @onclick='() => ActiveTab = "timeline"'>Timeline</button>
-        <button class="tab @(ActiveTab == "report" ? "active" : "")"   @onclick='() => ActiveTab = "report"'> Report  </button>
-        @if (Detail.Latitude != 0 && Detail.Longitude != 0)
+        <button class="tab @(ActiveTab == "overview" ? "active" : "")" @onclick='() => SetTab("overview")'>Overview</button>
+        <button class="tab @(ActiveTab == "teams" ? "active" : "")" @onclick='() => SetTab("teams")'>Teams</button>
+        <button class="tab @(ActiveTab == "resources" ? "active" : "")" @onclick='() => SetTab("resources")'>Resources</button>
+        <button class="tab @(ActiveTab == "affected" ? "active" : "")" @onclick='() => SetTab("affected")'>Affected People</button>
+        <button class="tab @(ActiveTab == "timeline" ? "active" : "")" @onclick='() => SetTab("timeline")'>Timeline</button>
+        <button class="tab @(ActiveTab == "report" ? "active" : "")" @onclick='() => SetTab("report")'>Report</button>
+        @if (Detail.Latitude != 0 || Detail.Longitude != 0)
         {
-            <button class="tab @(ActiveTab == "map" ? "active" : "")" @onclick="SwitchToMap">Map</button>
+            <button class='tab @(ActiveTab == "map" ? "active" : "")' @onclick='() => SetTab("map")'>
+                <i class="fa-solid fa-map-location-dot"></i> Map
+            </button>
         }
     </div>
 
@@ -130,14 +139,14 @@ else
     @if (ActiveTab == "teams")
     {
         <div class="tab-panel">
-             <div class="card">
+            <div class="card">
                 <div class="table-wrap">
                     <table class="data-table">
                         <thead>
                             <tr>
                                 <th>TeamId</th>
                                 <th>Name</th>
-                             
+
                             </tr>
                         </thead>
                         <tbody>
@@ -290,13 +299,7 @@ else
         </div>
     }
 
-    <!-- ══════════ MAP TAB ══════════ -->
-    @if (ActiveTab == "map")
-    {
-        <div class="tab-panel map-tab-panel">
-            <div id="detailMap" class="detail-map"></div>
-        </div>
-    }
+  
   
     @if (ActiveTab == "report")
     {
@@ -360,6 +363,26 @@ else
 
     <!-- ══════════ DISPATCH MODAL ══════════ -->
     <!-- ══════════ DISPATCH MODAL ══════════ -->
+    <!-- ══════════ MAP TAB ══════════ -->
+    @if (ActiveTab == "map")
+    {
+        <div class="tab-panel">
+            @if (Detail.Latitude == 0 && Detail.Longitude == 0)
+            {
+                <div class="empty-state">
+                    <i class="fa-solid fa-map-location-dot empty-state-icon"></i>
+                    <div class="empty-state-title">No location data available</div>
+                </div>
+            }
+            else
+            {
+                <div style="height:480px;border-radius:var(--r-lg);overflow:hidden;border:1px solid var(--border-color)">
+                    <div id="detailMap" style="width:100%;height:100%"></div>
+                </div>
+            }
+        </div>
+    }
+
     @if (ShowDispatch)
     {
         <div class="modal-overlay open">
@@ -544,7 +567,7 @@ else
     private string ActiveTab = "overview";
     private DisasterDetailResponse? Detail;
 
-    private List<DisasterTimelineEvent?> Timeline=new();
+    private List<DisasterTimelineEvent?> Timeline = new();
 
 
 
@@ -587,25 +610,39 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (ActiveTab == "map" && Detail is not null &&
-            (Detail.Latitude != 0 || Detail.Longitude != 0))
-        {
-            await InitDetailMapAsync();
-        }
+        // Map init is handled exclusively by SetTab() to avoid double-init races.
     }
 
     // ── Build flat view models from API response ───────────────────
 
 
     // ── Tab switching ──────────────────────────────────────────────
-    private async Task SwitchToMap()
+
+    // Centralised tab switcher — destroys the map whenever we leave the map tab
+    // so Leaflet can re-mount cleanly on the next visit.
+    private async Task SetTab(string tab)
     {
-        ActiveTab = "map";
+        if (ActiveTab == "map" && tab != "map")
+        {
+            // Tear down the existing Leaflet instance and reset the flag
+            // so InitDetailMapAsync() will run again on the next map visit.
+            try { await JS.InvokeVoidAsync("DersDetailMap.destroy"); } catch { }
+            _mapInitialised = false;
+        }
+
+        ActiveTab = tab;
         StateHasChanged();
-        // Small delay so the div renders before Leaflet tries to use it
-        await Task.Delay(80);
-        await InitDetailMapAsync();
+
+        if (tab == "map")
+        {
+            // Small delay so the <div id="detailMap"> is in the DOM before Leaflet runs.
+            await Task.Delay(80);
+            await InitDetailMapAsync();
+        }
     }
+
+    // Kept for the "View on Map" header button which goes straight to the map tab.
+    private async Task SwitchToMap() => await SetTab("map");
 
     // ── Map (Leaflet via JS interop) ───────────────────────────────
     private bool _mapInitialised = false;
@@ -623,7 +660,10 @@ else
                 Detail.Latitude,
                 Detail.Longitude,
                 Detail.Title,
-                Detail.Status);
+                Detail.Status,
+                Detail.Type,
+                Detail.Province,
+                Detail.City);
         }
         catch (JSException ex)
         {
@@ -645,12 +685,12 @@ else
         VolunteersLoading = true;
 
         DispatchError = "";
-        DispatchSuccess = ""; 
+        DispatchSuccess = "";
 
         SelectedTeamIds = new();
         SelectedVolunteerIds = new();
 
-        var teamsTask =  ServiceApi.GetRecommendedTeams(Detail.Id);
+        var teamsTask = ServiceApi.GetRecommendedTeams(Detail.Id);
         var volunteersTask = ServiceApi.GetRecommendedVolunteers(Detail.Id);
 
         await Task.WhenAll(teamsTask, volunteersTask);
@@ -707,7 +747,7 @@ else
         {
 
 
-            tasks.Add(ServiceApi.DispatchTeamsAsync(disasterGuid,new Requests.DispathTeamsRequest
+            tasks.Add(ServiceApi.DispatchTeamsAsync(disasterGuid, new Requests.DispathTeamsRequest
             {
                 TeamIds = SelectedTeamIds.ToList()
             }));
@@ -721,29 +761,29 @@ else
                 VolunteerIds = SelectedVolunteerIds.ToList()
             }));
         }
+
        
+        var results = await Task.WhenAll(tasks);
 
-    var results = await Task.WhenAll(tasks);
+        var failed = results.Where(r => !r.IsSuccess).ToList();
 
-    var failed = results.Where(r => !r.IsSuccess).ToList();
+        if (!failed.Any())
+        {
+            ShowDispatch = false;
 
-    if (!failed.Any())
-    {
-        ShowDispatch = false;
+            var refreshed = await ServiceApi.GetDisasterByIdAsync(disasterGuid);
+            if (refreshed.IsSuccess)
+                Detail = refreshed.Data;
 
-        var refreshed = await ServiceApi.GetDisasterByIdAsync(disasterGuid);
-        if (refreshed.IsSuccess)
-            Detail = refreshed.Data;
+            DispatchSuccess = "Resources dispatched successfully.";
+        }
+        else
+        {
+            DispatchError = failed.First().ErrorDetail;
+        }
 
-       DispatchSuccess = "Resources dispatched successfully.";
+        IsDispatching = false;
     }
-    else
-    {
-        DispatchError = failed.First().ErrorDetail;
-    }
-
-    IsDispatching = false;
-}
 
     private string FormatEventType(string type)
     {
