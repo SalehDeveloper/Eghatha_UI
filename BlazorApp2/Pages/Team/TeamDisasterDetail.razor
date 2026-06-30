@@ -94,41 +94,42 @@
                     Update Location
                 </button>
 
-                @* Team Status: toggle Active ↔ Returning — available at any disaster status *@
-                @if (_teamStatus == "Active")
-                {
-                    <button class="tdd-action-btn tdd-action-btn--warning"
-                            @onclick='() => ConfirmTeamStatusAsync("returning")'
-                            disabled="@_teamStatusBusy">
-                        @if (_teamStatusBusy)
-                        {
-                            <span class="spinner spinner-sm"></span>
-                        }
-                        else
-                        {
-                            <i class="fa-solid fa-rotate-left"></i>
-                        }
-                        Set Returning
-                    </button>
-                }
-                else
-                {
-                    <button class="tdd-action-btn tdd-action-btn--success"
-                            @onclick='() => ConfirmTeamStatusAsync("active")'
-                            disabled="@_teamStatusBusy">
-                        @if (_teamStatusBusy)
-                        {
-                            <span class="spinner spinner-sm"></span>
-                        }
-                        else
-                        {
-                            <i class="fa-solid fa-play"></i>
-                        }
-                        Set Active
-                    </button>
-                }
+                @* Team Status: two independent actions, always enabled. The backend
+                     validates whether the transition makes sense for the team's
+                     current status and returns an error message via toast if not. *@
+                <span class="tdd-status-badge" title="Current team status">
+                    @_teamStatus
+                </span>
 
-                @* Assign Resources — only while disaster is Active *@
+                <button class="tdd-action-btn tdd-action-btn--warning"
+                        @onclick='() => ConfirmTeamStatusAsync("returning")'
+                        disabled="@_teamStatusBusy">
+                    @if (_teamStatusBusy && _teamStatusPendingAction == "returning")
+                    {
+                        <span class="spinner spinner-sm"></span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-rotate-left"></i>
+                    }
+                    Set Returning
+                </button>
+
+                <button class="tdd-action-btn tdd-action-btn--success"
+                        @onclick='() => ConfirmTeamStatusAsync("active")'
+                        disabled="@_teamStatusBusy">
+                    @if (_teamStatusBusy && _teamStatusPendingAction == "active")
+                    {
+                        <span class="spinner spinner-sm"></span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-play"></i>
+                    }
+                    Set Active
+                </button>
+
+                @* Assign Resources — only while disaster is InProgress *@
                 @if (_disaster.Status == "InProgress")
                 {
                     <button class="tdd-action-btn tdd-action-btn--secondary"
@@ -138,7 +139,7 @@
                     </button>
                 }
 
-                @* Resolve Disaster — only while Active *@
+                @* Resolve Disaster — only while InProgress *@
                 @if (_disaster.Status == "InProgress")
                 {
                     <button class="tdd-action-btn tdd-action-btn--success"
@@ -174,6 +175,24 @@
                         }
                         Generate Report
                     </button>
+                }
+
+                @* Archive Disaster — only available once the disaster is Closed *@
+                @if (_disaster.Status == "Closed")
+                {
+                    <button class="tdd-action-btn tdd-action-btn--muted"
+                            @onclick="() => _showArchiveConfirm = true">
+                        <i class="fa-solid fa-box-archive"></i>
+                        Archive Disaster
+                    </button>
+                }
+
+                @* Archived — terminal state *@
+                @if (_disaster.Status == "Archived")
+                {
+                    <span class="tdd-status-badge tdd-status--archived">
+                        <i class="fa-solid fa-box-archive"></i> Archived
+                    </span>
                 }
 
             </div>
@@ -218,8 +237,8 @@
                                     <div class="tdd-rstat"><span class="tdd-rstat-val" style="color:var(--color-success)">@res.Returned</span><span class="tdd-rstat-lbl">Returned</span></div>
                                     <div class="tdd-rstat"><span class="tdd-rstat-val" style="color:var(--color-critical)">@res.Damaged</span><span class="tdd-rstat-lbl">Damaged</span></div>
                                 </div>
-                                @* Mark resource fate: available while Active OR Resolved (before Close) *@
-                                @if (_isLeader && (_disaster.Status == "InProgress" || _disaster.Status == "Resolved"))
+                                @* ── CHANGED: resource lifecycle actions only available when Resolved ── *@
+                                @if (_isLeader && _disaster.Status == "Resolved")
                                 {
                                     <div class="tdd-resource-actions">
                                         <button class="tdd-res-btn tdd-res-btn--consume"
@@ -247,8 +266,8 @@
         @if (_activeTab == "Affected Persons")
         {
             <div class="tdd-section">
-                @* Add person: available while Active OR Resolved (before Close) *@
-                @if (_isLeader && _disaster is not null && (_disaster.Status == "InProgress" || _disaster.Status == "Resolved"))
+                @* ── CHANGED: Add person only when Resolved (not InProgress) ── *@
+                @if (_isLeader && _disaster is not null && _disaster.Status == "Resolved")
                 {
                     <div class="tdd-section-toolbar">
                         <button class="tdd-action-btn tdd-action-btn--primary"
@@ -376,8 +395,8 @@
             </div>
         }
 
-        @* ── Report tab — only when Closed ── *@
-        @if (_activeTab == "Report" && _disaster.Status == "Closed")
+        @* ── Report tab — only when Closed or Archived ── *@
+        @if (_activeTab == "Report" && (_disaster.Status == "Closed" || _disaster.Status == "Archived"))
         {
             <div class="tdd-section">
                 @if (_disasterDetail?.Report is not null)
@@ -405,7 +424,7 @@
                     <div class="tdd-empty-inline">
                         <i class="fa-solid fa-file-circle-question" style="font-size:28px;color:var(--text-muted)"></i>
                         No report generated yet.
-                        @if (_isLeader)
+                        @if (_isLeader && _disaster.Status == "Closed")
                         {
                             <button class="tdd-action-btn tdd-action-btn--primary"
                                     @onclick="GenerateReportAsync" disabled="@_reportBusy">
@@ -525,6 +544,34 @@
     </div>
 }
 
+<!-- ── Archive Confirm ── -->
+@if (_showArchiveConfirm)
+{
+    <div class="modal-overlay" @onclick="() => _showArchiveConfirm = false">
+        <div class="modal" style="max-width:480px" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <div class="modal-title">Archive Disaster?</div>
+                <button class="modal-close" @onclick="() => _showArchiveConfirm = false"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p style="color:var(--text-secondary);font-size:14px">
+                    Archiving moves this disaster into long-term records. The history, resources, and report remain viewable, but no further actions can be taken.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button class="tdd-btn-secondary" @onclick="() => _showArchiveConfirm = false">Cancel</button>
+                <button class="tdd-btn-primary" @onclick="ArchiveDisasterAsync" disabled="@_disasterActionBusy">
+                    @if (_disasterActionBusy)
+                    {
+                        <span class="spinner spinner-sm"></span>
+                    }
+                    Confirm Archive
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 <!-- ── Assign Resources Modal ── -->
 @if (_showAssignResourceModal)
 {
@@ -533,7 +580,7 @@
             <div class="modal-header">
                 <div>
                     <div class="modal-title">Assign Resources</div>
-                    <div class="modal-subtitle">Select team resources to send to the disaster</div>
+                    <div class="modal-subtitle">Select team resources to dispatch to the disaster</div>
                 </div>
                 <button class="modal-close" @onclick="() => _showAssignResourceModal = false"><i class="fa-solid fa-xmark"></i></button>
             </div>
@@ -567,7 +614,7 @@
                     {
                         <span class="spinner spinner-sm"></span>
                     }
-                    Assign
+                    Dispatch
                 </button>
             </div>
         </div>
@@ -627,12 +674,13 @@
                     </div>
                     <div class="tdd-form-group">
                         <label class="tdd-form-label">Status *</label>
+                        @* ── CHANGED: removed "Safe", renamed "Deceased" → "Dead", added "Evacuated" ── *@
                         <select class="tdd-form-input" @bind="_newPerson.Status">
                             <option value="">— Select —</option>
-                            <option value="Safe">Safe</option>
                             <option value="Injured">Injured</option>
                             <option value="Missing">Missing</option>
-                            <option value="Deceased">Deceased</option>
+                            <option value="Dead">Dead</option>
+                            <option value="Evacuated">Evacuated</option>
                         </select>
                     </div>
                     <div class="tdd-form-group tdd-form-group--full">
@@ -796,7 +844,7 @@
     private TeamLocation? _teamLocation;
     private bool _isLeader;
     private Guid _teamId;
-    private string _teamStatus = "Active";
+    private string _teamStatus = "InProgress";
 
     // Tabs — Report tab is added dynamically once disaster is Closed
     private readonly List<string> _tabs = new() { "Resources", "Affected Persons", "Volunteers" };
@@ -812,10 +860,12 @@
 
     // Team status
     private bool _teamStatusBusy;
+    private string? _teamStatusPendingAction;
 
     // Disaster status
     private bool _showResolveConfirm;
     private bool _showCloseConfirm;
+    private bool _showArchiveConfirm;
     private bool _disasterActionBusy;
 
     // Resources
@@ -904,26 +954,58 @@
 
         await Task.WhenAll(disasterTask, locationTask, teamTask);
 
+        // ── FIX: figure out *which* disaster we're looking at first, then always
+        // load its canonical detail via GetDisasterByIdAsync as the single source
+        // of truth for the status badge. Previously, whenever GetCurrentTeamDisaster
+        // succeeded, we trusted its embedded Status field directly — but that field
+        // appears to lag behind the real disaster lifecycle once a disaster moves
+        // from Closed → Archived (GetCurrentTeamDisaster kept reporting "Closed").
+        // Always re-deriving _disaster from GetDisasterByIdAsync avoids that drift,
+        // and also fixes the "need to refresh the page" issue for resources/report. ──
         var disasterResult = disasterTask.Result;
+        Guid? disasterId = null;
+
         if (disasterResult.IsSuccess && disasterResult.Data is not null)
         {
-            _disaster = disasterResult.Data;
+            disasterId = disasterResult.Data.DisasterId;
+        }
+        else if (Guid.TryParse(DisasterId, out var routeDisasterId))
+        {
+            // The disaster is no longer "current" (e.g. it was Closed/Archived and the
+            // API returns 404 for current-disaster). Fall back to the route parameter
+            // so the Closed/Archived disaster page — report, location, team status —
+            // continues to work.
+            disasterId = routeDisasterId;
+        }
 
-            // Ensure Report tab exists iff disaster is Closed (idempotent)
-            if (_disaster.Status == "Closed" && !_tabs.Contains("Report"))
-                _tabs.Add("Report");
-            else if (_disaster.Status != "Closed" && _tabs.Contains("Report"))
-                _tabs.Remove("Report");
+        if (disasterId is not null)
+        {
+            var detailResult = await Api.GetDisasterByIdAsync(disasterId.Value);
+            if (detailResult.IsSuccess && detailResult.Data is not null)
+            {
+                var d = detailResult.Data;
+                _disaster = new TeamDisasterResponse(d.Id, d.Title, d.City, d.Province, d.Latitude, d.Longitude, d.Type, d.Status, d.StartTime);
+                _disasterDetail = d;
 
-            var detailTask = Api.GetDisasterByIdAsync(_disaster.DisasterId);
-            await Task.WhenAll(LoadVolunteersAsync(), detailTask);
-            if (detailTask.Result.IsSuccess && detailTask.Result.Data is not null)
-                _disasterDetail = detailTask.Result.Data;
+                // Ensure Report tab exists iff disaster is Closed or Archived (idempotent).
+                bool showReportTab = d.Status == "Closed" || d.Status == "Archived";
+                if (showReportTab && !_tabs.Contains("Report"))
+                    _tabs.Add("Report");
+                else if (!showReportTab && _tabs.Contains("Report"))
+                    _tabs.Remove("Report");
+
+                await LoadVolunteersAsync();
+            }
+            else
+            {
+                _disaster = null;
+                _error = detailResult.ErrorDetail ?? "Could not load disaster.";
+            }
         }
         else
         {
+            // No route param and no current disaster — team is unassigned.
             _disaster = null;
-            _error = disasterResult.ErrorDetail;
         }
 
         var locResult = locationTask.Result;
@@ -1030,20 +1112,30 @@
     }
 
     // ── Team status ────────────────────────────────────────────────
+    // Two independent actions (Set Returning / Set Active) are always enabled;
+    // the backend decides whether the transition is valid for the team's
+    // current status and returns an error message if it isn't.
     private async Task ConfirmTeamStatusAsync(string newStatus)
     {
         _teamStatusBusy = true;
+        _teamStatusPendingAction = newStatus;
         StateHasChanged();
 
-        ApiResult<string> result;
-        if (newStatus == "active")
-            result = await Api.ActivateTeamAsync(_teamId);
-        else
-            result = await Api.ReturningTeamAsync(_teamId);
+        ApiResult<string> result = newStatus switch
+        {
+            "returning" => await Api.ReturningTeamAsync(_teamId),
+            "active" => await Api.ActivateTeamAsync(_teamId),
+            _ => ApiResult<string>.Failure("Unknown status")
+        };
 
         if (result.IsSuccess)
         {
-            _teamStatus = newStatus == "active" ? "Active" : "Returning";
+            // Re-fetch the team's true status from the backend rather than
+            // guessing it client-side, so the badge always reflects reality.
+            var teamResult = await Api.GetTeamByIdAsync(_teamId);
+            if (teamResult.IsSuccess && teamResult.Data is not null)
+                _teamStatus = teamResult.Data.Status;
+
             ShowToast($"Team status updated to {_teamStatus}.", "success");
         }
         else
@@ -1052,6 +1144,7 @@
         }
 
         _teamStatusBusy = false;
+        _teamStatusPendingAction = null;
     }
 
     // ── Disaster status ────────────────────────────────────────────
@@ -1095,7 +1188,27 @@
         _disasterActionBusy = false;
     }
 
-    // ── Assign resources ───────────────────────────────────────────
+    private async Task ArchiveDisasterAsync()
+    {
+        _disasterActionBusy = true;
+        StateHasChanged();
+
+        var result = await Api.ArchiveDisasterAsync(_disaster!.DisasterId);
+        if (result.IsSuccess)
+        {
+            ShowToast("Disaster archived.", "success");
+            _showArchiveConfirm = false;
+            await LoadDisasterAsync();  // refresh — status badge becomes "Archived"
+        }
+        else
+        {
+            ShowToast(result.ErrorDetail ?? "Failed to archive disaster.", "error");
+        }
+
+        _disasterActionBusy = false;
+    }
+
+    // ── Assign / dispatch resources ────────────────────────────────
     private async Task OpenAssignModal()
     {
         _showAssignResourceModal = true;
@@ -1107,20 +1220,31 @@
         }
     }
 
+    // ── CHANGED: replaced DecreaseResourceQuantityAsync loop with DispatchResourceAsync ──
     private async Task AssignResourcesAsync()
     {
         _assignBusy = true;
         StateHasChanged();
 
         bool anyError = false;
-        foreach (var (id, qty) in _assignQty)
+        foreach (var (resourceId, qty) in _assignQty)
         {
             if (qty <= 0) continue;
-            var result = await Api.DecreaseResourceQuantityAsync(_teamId, id, qty);
+
+            var request = new DispatchResourceToDisasterRequest(
+                TeamId: _teamId,
+                ResourceId: resourceId,
+                Quantity: qty,
+                Notes: null);
+
+            var result = await Api.DispatchResourceAsync(_disaster!.DisasterId, request);
             if (!result.IsSuccess) anyError = true;
         }
 
-        ShowToast(anyError ? "Some resources failed to assign." : "Resources assigned.", anyError ? "error" : "success");
+        ShowToast(
+            anyError ? "Some resources failed to dispatch." : "Resources dispatched.",
+            anyError ? "error" : "success");
+
         _showAssignResourceModal = false;
         _assignBusy = false;
         await LoadDisasterAsync();

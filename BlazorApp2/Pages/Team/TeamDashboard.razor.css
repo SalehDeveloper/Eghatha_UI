@@ -48,6 +48,46 @@
     color: var(--text-secondary);
 }
 
+.tdash-header-right {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+}
+
+.tdash-live-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: var(--r-full);
+    background: var(--color-success-bg);
+    color: var(--color-success);
+    font-size: 12px;
+    font-weight: 700;
+    font-family: var(--font-display);
+    border: 1px solid rgba(82, 196, 26, .3);
+}
+
+.tdash-pulse {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-success);
+    animation: tdash-pulse-dot 1.5s ease infinite;
+}
+
+@keyframes tdash-pulse-dot {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(82, 196, 26, .5);
+    }
+
+    50% {
+        transform: scale(1.2);
+        box-shadow: 0 0 0 6px rgba(82, 196, 26, 0);
+    }
+}
+
 .tdash-role-badge--leader {
     background: var(--accent-glow);
     border-color: var(--accent-primary);

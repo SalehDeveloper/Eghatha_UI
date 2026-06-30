@@ -152,6 +152,18 @@ namespace BlazorApp2.Services
         // DISASTERS
         // ═══════════════════════════════════════════════════════
 
+        public async Task<ApiResult<string>> DispatchResourceAsync(
+    Guid disasterId,
+    DispatchResourceToDisasterRequest request)
+        {
+            var response = await _httpClient.PostAsJsonAsync(
+                $"api/v1/disasters/{disasterId}/resources", request);
+
+            if (response.IsSuccessStatusCode)
+                return ApiResult<string>.Success("");
+
+            return await HandleErrorResponseAsync<string>(response);
+        }
         public async Task<ApiResult<CreateDisasterResponse>> CreateDisasterAsync(CreateDisasterRequest model)
         {
             var response = await _httpClient.PostAsJsonAsync("api/v1/disasters", model);
@@ -215,6 +227,14 @@ namespace BlazorApp2.Services
         public async Task<ApiResult<string>> CloseDisasterAsync(Guid disasterId)
         {
             var response = await _httpClient.PostAsync($"api/v1/disasters/{disasterId}/close", null);
+            if (response.IsSuccessStatusCode)  
+                return ApiResult<string>.Success("");
+            return await HandleErrorResponseAsync<string>(response);
+        }
+
+        public async Task<ApiResult<string>> ArchiveDisasterAsync(Guid disasterId)
+        {
+            var response = await _httpClient.PostAsync($"api/v1/disasters/{disasterId}/archive", null);
             if (response.IsSuccessStatusCode)
                 return ApiResult<string>.Success("");
             return await HandleErrorResponseAsync<string>(response);

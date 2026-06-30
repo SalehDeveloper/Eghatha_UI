@@ -92,3 +92,29 @@
     margin-bottom: 12px;
     color: #fecaca;
 }
+
+/* ── Manual email-entry step (shown when ?email= is missing) ── */
+.ce-email-step {
+    margin: 20px 0 24px;
+}
+
+.ce-email-label {
+    display: block;
+    font-size: 13px;
+    opacity: 0.75;
+    margin-bottom: 6px;
+}
+
+.ce-box--email {
+    width: 100%;
+    height: 46px;
+    text-align: left;
+    font-size: 15px;
+    letter-spacing: normal;
+    padding: 0 14px;
+}
+
+/* ── Secondary text-link style for "use a different email" ── */
+.ce-resend button {
+    font-size: 13px;
+}

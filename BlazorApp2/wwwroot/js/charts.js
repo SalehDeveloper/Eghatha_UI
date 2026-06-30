@@ -1,18 +1,17 @@
 ﻿/* ═══════════════════════════════════════════════════════════════
    DERS — Charts  (wwwroot/js/charts.js)
-   Ported from the original charts.js — zero logic changes.
    Called from Blazor via JS interop after data is ready.
 
    Usage from C# (Dashboard.razor):
      await JS.InvokeVoidAsync("DersCharts.initDisasterChart",
-         barLabels, activeData, resolvedData);
+         statusLabels, statusData);
      await JS.InvokeVoidAsync("DersCharts.initDisasterTypeChart",
          typeLabels, typeData);
    ═══════════════════════════════════════════════════════════════ */
 
 window.DersCharts = (() => {
 
-    let _barChart = null;
+    let _statusChart = null;
     let _donutChart = null;
 
     function _css(name) {
@@ -32,75 +31,55 @@ window.DersCharts = (() => {
         };
     }
 
-    function _tickColor() { return _css('--text-muted') || '#525b73'; }
-    function _gridColor() { return 'rgba(255,255,255,0.05)'; }
     function _legendColor() { return _css('--text-secondary') || '#8a92a8'; }
 
-    /* ── BAR: Active vs Resolved per disaster type ── */
-    function initDisasterChart(labels, active, resolved) {
+    /* ── DOUGHNUT: Disaster status distribution ── */
+    function initDisasterChart(labels, data) {
         const canvas = document.getElementById('disasterChart');
-        if (!canvas || !labels || !labels.length) return;
+        if (!canvas || !labels || !labels.length || !data || !data.length) return;
 
-        if (_barChart) { try { _barChart.destroy(); } catch { } _barChart = null; }
+        if (_statusChart) { try { _statusChart.destroy(); } catch { } _statusChart = null; }
 
-        _barChart = new Chart(canvas, {
-            type: 'bar',
+        const STATUS_PALETTE = {
+            'Reported': { bg: 'rgba(250,173,20,0.75)', border: '#faad14' },
+            'InProgress': { bg: 'rgba(24,144,255,0.75)', border: '#1890ff' },
+            'Resolved': { bg: 'rgba(82,196,26,0.75)', border: '#52c41a' },
+            'Closed': { bg: 'rgba(82,130,246,0.75)', border: '#5282f6' },
+            'Archived': { bg: 'rgba(82,92,108,0.75)', border: '#525c6c' },
+            'Cancelled': { bg: 'rgba(255,77,79,0.75)', border: '#ff4d4f' },
+        };
+
+        const bgColors = labels.map(l => (STATUS_PALETTE[l] || { bg: 'rgba(138,146,168,0.75)' }).bg);
+        const borderColors = labels.map(l => (STATUS_PALETTE[l] || { border: '#8a92a8' }).border);
+
+        _statusChart = new Chart(canvas, {
+            type: 'doughnut',
             data: {
                 labels,
-                datasets: [
-                    {
-                        label: 'Active',
-                        data: active || labels.map(() => 0),
-                        backgroundColor: 'rgba(255,77,79,0.75)',
-                        borderColor: '#ff4d4f',
-                        borderWidth: 1,
-                        borderRadius: 4,
-                    },
-                    {
-                        label: 'Resolved',
-                        data: resolved || labels.map(() => 0),
-                        backgroundColor: 'rgba(82,196,26,0.75)',
-                        borderColor: '#52c41a',
-                        borderWidth: 1,
-                        borderRadius: 4,
-                    },
-                ],
+                datasets: [{
+                    data,
+                    backgroundColor: bgColors,
+                    borderColor: borderColors,
+                    borderWidth: 2,
+                    hoverOffset: 6,
+                }],
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true,
+                maintainAspectRatio: false,
+                cutout: '62%',
                 plugins: {
                     legend: {
                         display: true,
-                        position: 'top',
-                        align: 'end',
+                        position: 'bottom',
                         labels: {
                             color: _legendColor(),
                             font: { size: 11, family: 'DM Sans, sans-serif' },
                             boxWidth: 10,
-                            padding: 14,
+                            padding: 10,
                         },
                     },
                     tooltip: _tooltip(),
-                },
-                scales: {
-                    x: {
-                        grid: { color: _gridColor() },
-                        ticks: {
-                            color: _tickColor(),
-                            font: { size: 10 },
-                            maxRotation: 35,
-                            callback(val) {
-                                const label = this.getLabelForValue(val);
-                                return label.length > 12 ? label.slice(0, 12) + '…' : label;
-                            },
-                        },
-                    },
-                    y: {
-                        grid: { color: _gridColor() },
-                        ticks: { color: _tickColor(), font: { size: 11 }, stepSize: 1 },
-                        beginAtZero: true,
-                    },
                 },
             },
         });

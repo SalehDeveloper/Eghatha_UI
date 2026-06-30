@@ -74,7 +74,9 @@
             }
             else
             {
-                <canvas id="disasterChart" height="120"></canvas>
+                <div style="position:relative; width:100%; max-width:260px; height:260px; margin:0 auto;">
+                    <canvas id="disasterChart"></canvas>
+                </div>
             }
         </div>
     </div>
@@ -302,11 +304,6 @@
     </div>
 }
 
-
-
-
-
-
 @code {
     private bool IsLoading = true;
     private AccountStatisticsResponse AccountStats = new();
@@ -318,11 +315,9 @@
 
     private static readonly HashSet<string> InactiveStatuses =
         new(StringComparer.OrdinalIgnoreCase)
-        { "Resolved", "Closed", "Cancelled", };
+        { "Resolved", "Closed", "Cancelled", "Archived" };
 
-  
-
-    // Dispatch Modal Lifecycle 
+    // Dispatch Modal Lifecycle
     private DispatchModalData? _dispatchModal;
     private bool _dispatchLoading;
     private bool _dispatching;
@@ -354,6 +349,22 @@
 
     private async Task RenderChartsAsync()
     {
+        // ── Doughnut: status distribution (all 6 statuses)
+        var allStatuses = new[] { "Reported", "InProgress", "Resolved", "Closed", "Archived", "Cancelled" };
+
+        var statusCounts = allStatuses
+            .Select(s => new
+            {
+                Label = s,
+                Count = AllDisasters.Count(d =>
+                string.Equals(d.Status, s, StringComparison.OrdinalIgnoreCase))
+            })
+            .Where(x => x.Count > 0)   // hide statuses with 0 disasters
+            .ToList();
+
+        var statusLabels = statusCounts.Select(x => x.Label).ToArray();
+        var statusData = statusCounts.Select(x => (object)x.Count).ToArray();
+
         // ── Doughnut: type distribution
         var typeCounts = AllDisasters
             .GroupBy(d => string.IsNullOrEmpty(d.Type) ? "Unknown" : d.Type)
@@ -362,22 +373,9 @@
         var typeLabels = typeCounts.Keys.ToArray();
         var typeData = typeCounts.Values.Cast<object>().ToArray();
 
-        // ── Bar: active vs resolved per type
-        var barTypes = AllDisasters
-            .Select(d => string.IsNullOrEmpty(d.Type) ? "Unknown" : d.Type)
-            .Distinct().OrderBy(t => t).ToArray();
-
-        var active = AllDisasters.Where(d => !InactiveStatuses.Contains(d.Status)).ToList();
-        var resolved = AllDisasters.Where(d => InactiveStatuses.Contains(d.Status)).ToList();
-
-        var activeBars = barTypes.Select(t => (object)active.Count(d =>
-            (string.IsNullOrEmpty(d.Type) ? "Unknown" : d.Type) == t)).ToArray();
-        var resolvedBars = barTypes.Select(t => (object)resolved.Count(d =>
-            (string.IsNullOrEmpty(d.Type) ? "Unknown" : d.Type) == t)).ToArray();
-
         try
         {
-            await JS.InvokeVoidAsync("DersCharts.initDisasterChart", barTypes, activeBars, resolvedBars);
+            await JS.InvokeVoidAsync("DersCharts.initDisasterChart", statusLabels, statusData);
             await JS.InvokeVoidAsync("DersCharts.initDisasterTypeChart", typeLabels, typeData);
         }
         catch (JSException ex)
@@ -406,29 +404,15 @@
 
     private async Task HandleVolunteerRegistered(Services.VolunteerRegisteredEvent e)
     {
-        // Bump unread badge
-       /// NotifState.SetUnreadCount(NotifState.UnreadCount + 1);
-        //NotifState.SetRecent(new());
-
-        // Also bump pending registrations counter
         PendingRegistrations++;
-
-     
-
         await InvokeAsync(StateHasChanged);
     }
 
     private async Task HandleDisasterReported(Services.DisasterReportedEvent e)
     {
-        // Bump unread badge
-       // NotifState.SetUnreadCount(NotifState.UnreadCount + 1);
-        //NotifState.SetRecent(new());
         ActiveDisasters++;
-
-
         await InvokeAsync(StateHasChanged);
     }
-
 
     private Task OpenDispatchModalAsync(RtToast toast)
     {
@@ -501,16 +485,13 @@
 
         StateHasChanged();
     }
-    
+
     public async ValueTask DisposeAsync()
     {
         HubService.OnVolunteerRegistered -= HandleVolunteerRegistered;
         HubService.OnDisasterReported -= HandleDisasterReported;
     }
-    
-    
-    
-    // Add to RtToast record:
+
     private record RtToast(
         int Id,
         string Kind,
@@ -518,8 +499,8 @@
         string Url,
         Guid? DisasterId,
         int DurationMs,
-        List<RecommendedTeamsResponse>? RecommendedTeams,      // ← new
-        List<RecommendedVolunteerResponse>? RecommendedVolunteers); // ← new
+        List<RecommendedTeamsResponse>? RecommendedTeams,
+        List<RecommendedVolunteerResponse>? RecommendedVolunteers);
 
     private record DispatchModalData(
         Guid DisasterId,

@@ -3,7 +3,7 @@
 @inject BlazorApp2.Services.ServiceApi ServiceApi
 @inject NavigationManager Nav
 
-<PageTitle>Confirm Email — DERS</PageTitle>
+<PageTitle>Confirm Email — EGHATHA</PageTitle>
 
 <div class="ce-root">
     <div class="ce-card">
@@ -11,13 +11,13 @@
         <div class="ce-header">
             <h1>Confirm your email</h1>
 
-            @if (!string.IsNullOrEmpty(Email))
+            @if (_codeSent && !string.IsNullOrEmpty(_email))
             {
-                <p>We sent an 8-digit code to <strong>@Email</strong></p>
+                <p>We sent an 8-digit code to <strong>@_email</strong></p>
             }
             else
             {
-                <p>Enter the 8-digit code sent to your email address.</p>
+                <p>Enter the email address you registered with, and we'll send you a confirmation code.</p>
             }
         </div>
 
@@ -26,38 +26,74 @@
             <div class="ce-error">@_error</div>
         }
 
-        <!-- OTP INPUTS -->
-        <div class="ce-code-inputs">
-            @for (int i = 0; i < 8; i++)
-            {
-                var index = i;
+        @if (!_codeSent)
+        {
+            <!-- ═══ STEP 0 — no email in context yet: ask for it ═══ -->
+            <!-- Happens if the browser was closed/refreshed after registering
+                 and the volunteer came back without the original confirm-email link. -->
+            <div class="ce-email-step">
+                <label class="ce-email-label" for="ce-email-input">Email address</label>
+                <input id="ce-email-input"
+                       type="email"
+                       class="ce-box ce-box--email"
+                       placeholder="you@example.com"
+                       value="@_email"
+                       @oninput="OnEmailInput"
+                       @onkeydown="OnEmailKeyDown" />
+            </div>
 
-                <input class="ce-box"
-                       @ref="_inputs[index]"
-                       maxlength="1"
-                       value="@_digits[index]"
-                       @oninput="e => OnDigitInput(index, e)"
-                       @onkeydown="e => OnKeyDown(index, e)" />
-            }
-        </div>
-
-        <button class="ce-btn" @onclick="ConfirmAsync" disabled="@_loading">
-            @if (_loading)
-            {
-                <span>Confirming...</span>
-            }
-            else
-            {
-                <span>Confirm email</span>
-            }
-        </button>
-
-        <div class="ce-resend">
-            <span>Didn't receive the code?</span>
-            <button @onclick="ResendAsync" disabled="@_resending">
-                @(_resending ? "Resending..." : "Resend code")
+            <button class="ce-btn" @onclick="SendCodeAsync" disabled="@_sendingCode">
+                @if (_sendingCode)
+                {
+                    <span>Sending...</span>
+                }
+                else
+                {
+                    <span>Send confirmation code</span>
+                }
             </button>
-        </div>
+        }
+        else
+        {
+            <!-- ═══ STEP 1 — code was sent: show the 8-digit OTP boxes ═══ -->
+            <div class="ce-code-inputs">
+                @for (int i = 0; i < 8; i++)
+                {
+                    var index = i;
+
+                    <input class="ce-box"
+                           @ref="_inputs[index]"
+                           maxlength="1"
+                           value="@_digits[index]"
+                           @oninput="e => OnDigitInput(index, e)"
+                           @onkeydown="e => OnKeyDown(index, e)" />
+                }
+            </div>
+
+            <button class="ce-btn" @onclick="ConfirmAsync" disabled="@_loading">
+                @if (_loading)
+                {
+                    <span>Confirming...</span>
+                }
+                else
+                {
+                    <span>Confirm email</span>
+                }
+            </button>
+
+            <div class="ce-resend">
+                <span>Didn't receive the code?</span>
+                <button @onclick="ResendAsync" disabled="@_resending">
+                    @(_resending ? "Resending..." : "Resend code")
+                </button>
+            </div>
+
+            <div class="ce-resend">
+                <button @onclick="UseDifferentEmail">
+                    Use a different email address
+                </button>
+            </div>
+        }
 
     </div>
 </div>
@@ -65,17 +101,86 @@
 @code {
 
     // ── Query param ─────────────────────────────
+    // Still supported for the normal flow: RegisterVolunteer redirects here
+    // with ?email=... right after a successful submission.
     [Parameter, SupplyParameterFromQuery]
     public string? Email { get; set; }
+
+    // Local, editable copy of the email. Seeded from the query param,
+    // but the volunteer can also type it in manually if they came back
+    // to this page without that context (closed browser, lost tab, etc).
+    private string _email = "";
+
+    // True once a code has actually been requested for _email —
+    // controls whether we show the "enter your email" step or the OTP step.
+    private bool _codeSent;
 
     private string[] _digits = new string[8];
     private ElementReference[] _inputs = new ElementReference[8];
 
     private bool _loading;
     private bool _resending;
+    private bool _sendingCode;
     private string _error = "";
 
     private string Code => string.Concat(_digits);
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrWhiteSpace(Email))
+        {
+            // Came here straight from registration — we already know the
+            // email and the backend already sent the first code, so skip
+            // straight to the OTP step.
+            _email = Email;
+            _codeSent = true;
+        }
+    }
+
+    // ── EMAIL INPUT (manual entry step) ──
+    private void OnEmailInput(ChangeEventArgs e)
+    {
+        _email = e.Value?.ToString() ?? "";
+    }
+
+    private async Task OnEmailKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SendCodeAsync();
+        }
+    }
+
+    // ── SEND CODE (first request, from the manual-entry step) ──
+    private async Task SendCodeAsync()
+    {
+        _error = "";
+
+        if (string.IsNullOrWhiteSpace(_email) || !_email.Contains('@') || !_email.Contains('.'))
+        {
+            _error = "Please enter a valid email address.";
+            return;
+        }
+
+        _sendingCode = true;
+
+        var result = await ServiceApi.ResendConfirmEmailCodeAsync(
+            new Requests.ResendEmailCodeRequest(_email));
+
+        _sendingCode = false;
+
+        if (result.IsSuccess)
+        {
+            _codeSent = true;
+            Array.Clear(_digits);
+        }
+        else
+        {
+            _error = result.ErrorDetail ??
+                "We couldn't find a pending registration for this email. " +
+                "Please check the address, or sign up again if you haven't registered yet.";
+        }
+    }
 
     // ── DIGIT INPUT HANDLER (with auto-focus) ──
     private async Task OnDigitInput(int index, ChangeEventArgs e)
@@ -114,9 +219,10 @@
     {
         _error = "";
 
-        if (string.IsNullOrWhiteSpace(Email))
+        if (string.IsNullOrWhiteSpace(_email))
         {
-            _error = "Email is missing. Please restart registration.";
+            _error = "Email is missing. Please re-enter your email address.";
+            _codeSent = false;
             return;
         }
 
@@ -129,7 +235,7 @@
         _loading = true;
 
         var result = await ServiceApi.ConfirmEmailAsync(
-            new Requests.ConfirmEmailRequest(Email, Code));
+            new Requests.ConfirmEmailRequest(_email, Code));
 
         _loading = false;
 
@@ -150,11 +256,19 @@
         _error = "";
 
         var result = await ServiceApi.ResendConfirmEmailCodeAsync(
-            new Requests.ResendEmailCodeRequest(Email));
+            new Requests.ResendEmailCodeRequest(_email));
 
         _resending = false;
 
         if (!result.IsSuccess)
             _error = result.ErrorDetail ?? "Failed to resend code.";
+    }
+
+    // ── GO BACK TO EMAIL-ENTRY STEP ──
+    private void UseDifferentEmail()
+    {
+        _error = "";
+        _codeSent = false;
+        Array.Clear(_digits);
     }
 }

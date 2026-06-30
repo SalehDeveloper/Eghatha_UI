@@ -74,39 +74,230 @@ a {
         content: "An error has occurred."
     }
 
-.loading-progress {
-    position: absolute;
-    display: block;
-    width: 8rem;
-    height: 8rem;
-    inset: 20vh 0 auto 0;
-    margin: 0 auto 0 auto;
+/* =====================================================
+   EGHATHA BRANDED SPLASH SCREEN — Cinematic v2
+   ===================================================== */
+
+.splash-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    background: #050709;
+    overflow: hidden;
 }
 
-    .loading-progress circle {
-        fill: none;
-        stroke: #e0e0e0;
-        stroke-width: 0.6rem;
-        transform-origin: 50% 50%;
-        transform: rotate(-90deg);
+    /* Grid texture */
+    .splash-screen::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-image: linear-gradient(rgba(59,130,246,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.04) 1px, transparent 1px);
+        background-size: 40px 40px;
+        pointer-events: none;
     }
 
-        .loading-progress circle:last-child {
-            stroke: #1b6ec2;
-            stroke-dasharray: calc(3.141 * var(--blazor-load-percentage, 0%) * 0.8), 500%;
-            transition: stroke-dasharray 0.05s ease-in-out;
-        }
+    /* Radial glow behind the shield */
+    .splash-screen::after {
+        content: '';
+        position: absolute;
+        top: 38%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 420px;
+        height: 320px;
+        background: radial-gradient(ellipse, rgba(37,99,235,0.22) 0%, transparent 70%);
+        pointer-events: none;
+    }
+
+/* ── Shield wrapper (holds orbit ring + icon box) ── */
+.splash-ring {
+    position: relative;
+    width: 130px;
+    height: 130px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 28px;
+}
+
+    /* Orbit ring (static outline — a circle looks identical whether it spins or not) */
+    .splash-ring::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border: 1px solid rgba(59,130,246,0.35);
+        border-radius: 50%;
+    }
+
+    /* Orbit dot — centered exactly on the ring's center (top:50%/left:50% + negative margins),
+       so rotating around the element's default transform-origin traces a perfect circle. */
+    .splash-ring::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 7px;
+        height: 7px;
+        margin-top: -3.5px;
+        margin-left: -3.5px;
+        background: #3b82f6;
+        border-radius: 50%;
+        box-shadow: 0 0 10px #3b82f6, 0 0 20px rgba(59,130,246,0.5);
+        animation: orbit-dot 8s linear infinite;
+    }
+
+@keyframes orbit-dot {
+    from {
+        transform: rotate(0deg) translateY(-57px);
+    }
+
+    to {
+        transform: rotate(360deg) translateY(-57px);
+    }
+}
+
+/* Icon box */
+.splash-icon {
+    position: relative;
+    z-index: 2;
+    width: 96px;
+    height: 96px;
+    background: rgba(8,14,30,0.92);
+    border: 1px solid rgba(59,130,246,0.35);
+    border-radius: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: none;
+}
+
+    .splash-icon i {
+        font-size: 2.4rem;
+        color: #3b82f6;
+        filter: drop-shadow(0 0 10px rgba(59,130,246,0.7));
+        animation: icon-breathe 3s ease-in-out infinite;
+    }
+
+@keyframes icon-breathe {
+    0%, 100% {
+        filter: drop-shadow(0 0 8px rgba(59,130,246,0.5));
+    }
+
+    50% {
+        filter: drop-shadow(0 0 18px rgba(59,130,246,0.9));
+    }
+}
+
+/* ── Brand name ── */
+.splash-brand {
+    display: flex;
+    font-family: 'Syne', sans-serif;
+    font-weight: 900;
+    font-size: 2.4rem;
+    letter-spacing: 0.18em;
+    color: #ffffff;
+}
+
+    .splash-brand span {
+        display: inline-block;
+        opacity: 0;
+        animation: letter-in 0.5s ease-out forwards;
+        animation-delay: calc(0.5s + var(--i) * 0.07s);
+        text-shadow: none;
+    }
+
+@keyframes letter-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ── Vertical divider line ── */
+.splash-tagline {
+    position: relative;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.72rem;
+    letter-spacing: 0.3em;
+    color: rgba(59,130,246,0.75);
+    text-transform: uppercase;
+    margin-top: 0;
+    opacity: 0;
+    animation: fadein 0.6s ease 1.2s forwards;
+}
+
+    .splash-tagline::before {
+        content: '';
+        display: block;
+        width: 1px;
+        height: 36px;
+        background: linear-gradient(to bottom, transparent, rgba(59,130,246,0.55), transparent);
+        margin: 10px auto 12px;
+    }
+
+/* ── Loading dots ── */
+.loading-progress {
+    display: none; /* hide the SVG ring */
+}
 
 .loading-progress-text {
-    position: absolute;
-    text-align: center;
-    font-weight: bold;
-    inset: calc(20vh + 3.25rem) 0 auto 0.2rem;
+    display: flex;
+    gap: 7px;
+    margin-top: 40px;
+    opacity: 0;
+    animation: fadein 0.5s ease 1.4s forwards;
 }
 
-    .loading-progress-text:after {
-        content: var(--blazor-load-percentage-text, "Loading");
+    .loading-progress-text span {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #3b82f6;
+        box-shadow: 0 0 8px #3b82f6;
+        animation: dot-blink 1.4s ease-in-out infinite;
     }
+
+        .loading-progress-text span:nth-child(1) {
+            animation-delay: 0s;
+        }
+
+        .loading-progress-text span:nth-child(2) {
+            animation-delay: 0.28s;
+        }
+
+        .loading-progress-text span:nth-child(3) {
+            animation-delay: 0.56s;
+        }
+
+@keyframes dot-blink {
+    0%, 100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.2;
+    }
+}
+
+@keyframes fadein {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
 
 code {
     color: #c02d76;
@@ -163,6 +354,7 @@ html, body {
         background: var(--accent-glow);
         color: var(--accent-primary);
     }
+
 .modal-overlay {
     position: fixed;
     inset: 0;
@@ -263,3 +455,314 @@ html, body {
         transform: translateY(0);
     }
 }
+/* =====================================================
+   FORGOT PASSWORD — global input/form overrides
+   (scoped CSS can't reliably style InputText renders,
+    so these live here under .reset-card namespace)
+   ===================================================== */
+
+/* Make EditForm (renders as <form>) fill its container */
+.reset-card form {
+    display: block;
+    width: 100%;
+}
+
+/* Field wrapper */
+.reset-card .field {
+    margin-bottom: 1rem;
+    width: 100%;
+}
+
+    .reset-card .field > label,
+    .reset-card .field-label-row label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 6px;
+    }
+
+.reset-card .field-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+/* All inputs inside the reset card — targets the actual <input> element */
+.reset-card input[type="text"],
+.reset-card input[type="email"],
+.reset-card input[type="password"],
+.reset-card .input {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px 16px;
+    border: 1.5px solid #dbeafe;
+    border-radius: 10px;
+    font-size: 14px;
+    color: #0f172a;
+    background: #f8fbff;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+    font-family: inherit;
+}
+
+    .reset-card input[type="text"]:focus,
+    .reset-card input[type="email"]:focus,
+    .reset-card input[type="password"]:focus,
+    .reset-card .input:focus {
+        border-color: #2563eb;
+        background: #ffffff;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.10);
+    }
+
+/* Code input */
+.reset-card .code-input {
+    font-family: 'JetBrains Mono', 'Courier New', monospace !important;
+    font-size: 20px !important;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    text-align: center;
+}
+
+/* Password wrapper — border lives on the wrapper, not the input */
+.reset-card .pw-wrapper {
+    display: flex;
+    align-items: stretch;
+    border: 1.5px solid #dbeafe;
+    border-radius: 10px;
+    background: #f8fbff;
+    overflow: hidden;
+    transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+    .reset-card .pw-wrapper:focus-within {
+        border-color: #2563eb;
+        background: #ffffff;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.10);
+    }
+
+    /* Strip border/bg from the input inside pw-wrapper */
+    .reset-card .pw-wrapper input[type="text"],
+    .reset-card .pw-wrapper input[type="password"] {
+        flex: 1;
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        border-radius: 0;
+        min-width: 0;
+    }
+
+        .reset-card .pw-wrapper input[type="text"]:focus,
+        .reset-card .pw-wrapper input[type="password"]:focus {
+            border: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
+        }
+
+.reset-card .pw-toggle {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    border-left: 1px solid #dbeafe;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    padding: 0 14px;
+    transition: color 0.15s, background 0.15s;
+    white-space: nowrap;
+    font-family: inherit;
+}
+
+    .reset-card .pw-toggle:hover {
+        color: #2563eb;
+        background: #eff6ff;
+    }
+
+/* Primary button */
+.reset-card .primary-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 13px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #2563eb, #3b82f6);
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 0.85rem;
+    letter-spacing: 0.01em;
+    transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.30);
+    font-family: inherit;
+}
+
+    .reset-card .primary-btn:hover:not(:disabled) {
+        opacity: 0.93;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(37, 99, 235, 0.38);
+    }
+
+    .reset-card .primary-btn:active:not(:disabled) {
+        transform: translateY(0);
+    }
+
+    .reset-card .primary-btn:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+    }
+
+/* Spinner inside button */
+.reset-card .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,0.35);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: reset-spin 0.7s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes reset-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Resend button */
+.reset-card .resend-btn {
+    background: none;
+    border: 1px solid #bfdbfe;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #2563eb;
+    padding: 4px 10px;
+    transition: all 0.15s;
+    font-family: inherit;
+}
+
+    .reset-card .resend-btn:hover:not(:disabled) {
+        background: #eff6ff;
+        border-color: #93c5fd;
+    }
+
+    .reset-card .resend-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+/* Error banner */
+.reset-card .error-banner {
+    margin-top: 1rem;
+    padding: 10px 14px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #b91c1c;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Back link */
+.reset-card .back-link {
+    display: block;
+    text-align: center;
+    font-size: 13px;
+    color: #2563eb;
+    text-decoration: none;
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid #e0eeff;
+    transition: color 0.15s;
+}
+
+    .reset-card .back-link:hover {
+        text-decoration: underline;
+        color: #1d4ed8;
+    }
+
+/* Validation messages */
+.reset-card .validation-message {
+    font-size: 12px;
+    color: #dc2626;
+    margin-top: 4px;
+    display: block;
+}
+
+/* ── Already-sent hint box (rate-limit UX) ── */
+.reset-card .already-sent-box {
+    margin-top: 1rem;
+    padding: 16px;
+    background: #eff6ff;
+    border: 1.5px solid #bfdbfe;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.reset-card .already-sent-icon {
+    font-size: 1.6rem;
+    margin-bottom: 8px;
+}
+
+.reset-card .already-sent-box p {
+    font-size: 13.5px;
+    color: #374151;
+    line-height: 1.6;
+    margin: 0 0 12px;
+}
+
+    .reset-card .already-sent-box p strong {
+        color: #1d4ed8;
+    }
+
+.reset-card .ghost-btn {
+    display: inline-block;
+    padding: 8px 18px;
+    border: 1.5px solid #2563eb;
+    border-radius: 8px;
+    background: transparent;
+    color: #2563eb;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    font-family: inherit;
+}
+
+    .reset-card .ghost-btn:hover {
+        background: #2563eb;
+        color: #fff;
+    }
+
+/* ── "Already have a code?" link under send button ── */
+.reset-card .already-have-code-link {
+    display: block;
+    width: 100%;
+    margin-top: 12px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: #2563eb;
+    text-align: center;
+    padding: 4px 0;
+    transition: color 0.15s;
+    font-family: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+    .reset-card .already-have-code-link:hover {
+        color: #1d4ed8;
+    }

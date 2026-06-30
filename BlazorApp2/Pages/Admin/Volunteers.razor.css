@@ -293,6 +293,10 @@
     text-transform: uppercase;
 }
 
+.badge-underreview {
+    background: var(--color-info-bg);
+    color: var(--color-info);
+}
 .badge-pending {
     background: var(--color-warning-bg);
     color: var(--color-warning);

@@ -227,7 +227,7 @@
     private List<AccountResponse> Items { get; set; } = new();
     private AccountStatisticsResponse AccountStatisticsResponse { get; set; } = new();
 
-    private List<string> Roles { get; set; } = new() { "Admin", "TeamMember", "Volunteer" };
+    private List<string> Roles { get; set; } = new() {"TeamMember", "Volunteer" };
     private List<string> Statuses { get; set; } = new() { "Active", "InActive" };
 
     private string SearchTerm = "";
@@ -288,7 +288,7 @@
 
         if (result.IsSuccess)
         {
-            Items = result.Data.Items;
+            Items = result.Data.Items.Where(x=> x.Roles.FirstOrDefault() !="Admin").ToList();
             TotalCount = result.Data.TotalCount;
 
             foreach (var a in Items)

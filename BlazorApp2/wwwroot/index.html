@@ -38,11 +38,22 @@
 
 <body>
     <div id="app">
-        <svg class="loading-progress">
-            <circle r="40%" cx="50%" cy="50%" />
-            <circle r="40%" cx="50%" cy="50%" />
-        </svg>
-        <div class="loading-progress-text"></div>
+        <div class="splash-screen">
+            <div class="splash-ring">
+                <svg class="loading-progress" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="44" />
+                    <circle cx="50" cy="50" r="44" />
+                </svg>
+                <span class="splash-icon">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </span>
+            </div>
+            <div class="splash-brand">
+                <span style="--i:0">E</span><span style="--i:1">G</span><span style="--i:2">H</span><span style="--i:3">A</span><span style="--i:4">T</span><span style="--i:5">H</span><span style="--i:6">A</span>
+            </div>
+            <div class="splash-tagline">Coordinating relief, in real time</div>
+            <div class="loading-progress-text"><span></span><span></span><span></span></div>
+        </div>
     </div>
 
     <div id="blazor-error-ui">

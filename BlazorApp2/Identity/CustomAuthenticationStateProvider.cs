@@ -1,6 +1,8 @@
-﻿using Blazored.LocalStorage;
+﻿using BlazorApp2.Models;
+using Blazored.LocalStorage;
 using Microsoft.AspNetCore.Components.Authorization;
 using System.Net.Http.Json;
+using System.Reflection.Metadata;
 using System.Security.Claims;
 using System.Text.Json;
 
@@ -24,8 +26,10 @@ namespace BlazorApp2.Identity
             try
             {
                 var httpClient = _httpClientFactory.CreateClient("Eghatha");
+
                 var result = await httpClient.PostAsJsonAsync(
-                    "api/v1/identity/login", new
+                    "api/v1/identity/login",
+                    new
                     {
                         email,
                         password
@@ -34,25 +38,33 @@ namespace BlazorApp2.Identity
                 if (result.IsSuccessStatusCode)
                 {
                     var response = await result.Content.ReadFromJsonAsync<TokenResponse>();
+
                     await _localStorageService.SetItemAsync("authResult", response);
 
                     NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
 
                     return new FormResult { Succeeded = true };
                 }
+
+                var error = await result.Content.ReadAsStringAsync();
+                var problem = JsonSerializer.Deserialize<ProblemDetails>(error, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                return new FormResult
+                {
+                    Succeeded = false,
+                    ErrorList = [problem.Detail]
+                };
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "App error");
+
+                return new FormResult
+                {
+                    Succeeded = false,
+                    ErrorList = ["An unexpected error occurred."]
+                };
             }
-
-            return new FormResult
-            {
-                Succeeded = false,
-                ErrorList = ["Invalid email and/or password."]
-            };
         }
-
         public override async Task<AuthenticationState> GetAuthenticationStateAsync()
         {
             authenticated = false;

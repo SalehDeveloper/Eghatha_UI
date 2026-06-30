@@ -303,6 +303,10 @@
     background: var(--color-info-bg);
     color: var(--color-info);
 }
+.badge-archived {
+    background: var(--bg-surface-3);
+    color: var(--text-secondary);
+}
 
 /* Empty state */
 .empty-state {

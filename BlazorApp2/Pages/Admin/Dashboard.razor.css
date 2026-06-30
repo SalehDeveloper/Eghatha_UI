@@ -341,6 +341,10 @@
     background: var(--color-warning-bg);
     color: var(--color-warning);
 }
+.badge-archived {
+    background: var(--bg-surface-3);
+    color: var(--text-secondary);
+}
 
 /* Buttons */
 .btn {

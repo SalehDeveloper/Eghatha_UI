@@ -375,6 +375,11 @@
     background: var(--color-warning-bg);
     color: var(--color-warning);
 }
+/* Reported - Neutral / Newly created */
+.badge-reported {
+    background: #eff6ff;
+    color: #2563eb;
+}
 
 .badge-inprogress {
     background: var(--color-info-bg);
@@ -385,6 +390,12 @@
     background: var(--color-success-bg);
     color: var(--color-success);
 }
+
+.badge-archived {
+    background: var(--bg-surface-3);
+    color: var(--text-secondary);
+}
+
 
 /* Buttons */
 .btn {

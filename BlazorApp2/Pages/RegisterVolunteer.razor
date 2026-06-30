@@ -5,7 +5,7 @@
 @inject IJSRuntime JS
 @using Microsoft.AspNetCore.Components.Forms
 
-<PageTitle>Register as a Volunteer — DERS</PageTitle>
+<PageTitle>Register as a Volunteer — EGHATHA</PageTitle>
 
 <!-- ══ Hero ══════════════════════════════════════════════════════════ -->
 <div class="rv-root">
@@ -15,7 +15,7 @@
         <div class="rv-hero-inner">
             <div class="rv-logo">
                 <i class="fa-solid fa-shield-halved"></i>
-                <span>DERS</span>
+                <span>EGHATHA</span>
             </div>
 
             <div class="rv-hero-badge">Syria Response Network</div>
@@ -416,6 +416,10 @@
             <p class="rv-login-hint">
                 Already registered? <a href="/login">Sign in here</a>
             </p>
+            <p class="rv-login-hint">
+                Already submitted but didn't confirm your email?
+                <a href="/confirm-email">Confirm it here</a>
+            </p>
         }
     </main>
 </div>
@@ -437,12 +441,12 @@
     private string _email = "";
     private string _phone = "";
     private string _password = "";
- 
 
+ 
     // Step 2 — professional
     private string _speciality = "";
     private int _yearsOfExperience = 2;
-   
+
     private byte[]? _photoBytes;
     private string? _photoName;
     private string? _photoContentType;

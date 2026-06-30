@@ -1,131 +1,112 @@
-﻿@* Place inside TeamLayout.razor just before the closing root </div> *@
+﻿@* Components/Shared/TeamHubToastContainer.razor
+   Real-time toast stack for the Team Portal.
+   Mirrors BlazorApp2.Components.Shared.HubToastContainer (admin side) —
+   subscribes directly to TeamHubService events instead of going through
+   NotificationState, so it reacts the instant SignalR pushes an event,
+   independent of whatever page is currently on screen.
 
-@using BlazorApp2.Services
-@inject TeamHubService Hub
+   Drop at: Components/Shared/TeamHubToastContainer.razor
+   Rendered once from TeamLayout.razor (leader-only), so it persists
+   across navigation within the team portal — same lifetime as the hub
+   connection itself.
+*@
+@inject BlazorApp2.Services.TeamHubService TeamHub
 @inject NavigationManager Nav
-@inject NotificationState NotifState
 @implements IDisposable
 
 @if (_toasts.Count > 0)
 {
-    <div class="hub-toast-stack">
-        @foreach (var t in _toasts)
+    <div class="team-rt-toast-stack">
+        @foreach (var toast in _toasts)
         {
-            var toast = t;
-            <div class="hub-toast hub-toast--@toast.Color @(toast.Leaving ? "hub-toast--out" : "")"
-                 @onclick="() => ClickToast(toast)">
-
-                <div class="hub-toast-icon">
-                    <i class="fa-solid @toast.Icon"></i>
+            var t = toast; // capture for lambda
+            <div class="team-rt-toast team-rt-toast--@t.Kind" @key="t.Id" @onclick="() => HandleToastClick(t)">
+                <div class="team-rt-toast-icon">
+                    <i class="fa-solid @IconFor(t.Kind)"></i>
                 </div>
-
-                <div class="hub-toast-body">
-                    <div class="hub-toast-title">@toast.Title</div>
-                    <div class="hub-toast-msg">@toast.Message</div>
+                <div class="team-rt-toast-body">
+                    <div class="team-rt-toast-title">@TitleFor(t.Kind)</div>
+                    <div class="team-rt-toast-msg">@t.Message</div>
                 </div>
-
-                <button class="hub-toast-close" @onclick:stopPropagation="true"
-                        @onclick="() => DismissToast(toast)">
+                <button class="team-rt-toast-close" @onclick="() => Dismiss(t.Id)" @onclick:stopPropagation="true">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
-
             </div>
         }
     </div>
 }
 
 @code {
-    private List<ActiveToast> _toasts = new();
+    private readonly List<RtToast> _toasts = new();
+    private int _nextId = 1;
 
     protected override void OnInitialized()
     {
-        Console.WriteLine("[TeamHubToastContainer] ✅ Initialized — subscribing to team events");
-        Hub.OnTeamAssignedToDisaster += HandleTeamAssigned;
+        TeamHub.OnTeamAssignedToDisaster += HandleTeamAssigned;
     }
 
-    // ── Event handler ──────────────────────────────────────────────────────
-
-    private Task HandleTeamAssigned(TeamAssignedEvent e)
+    // ── Hub handler — fires on the SignalR thread, so hop back via InvokeAsync ──
+    private Task HandleTeamAssigned(Services.TeamAssignedEvent e)
     {
-        ShowToast(new ActiveToast(
-            Title: "Disaster Assigned",
-            Message: $"{e.Title} — {e.City}",
-            Icon: "fa-fire",
-            Color: "critical",
-            NavigateTo: $"/team/disasters/{e.ReferenceId}"
-        ));
-
-        // Bump the unread badge in the notification icon
-        NotifState.SetUnreadCount(NotifState.UnreadCount + 1);
-
-        return Task.CompletedTask;
-    }
-
-    // ── Toast lifecycle ────────────────────────────────────────────────────
-
-    private void ShowToast(ActiveToast toast)
-    {
-        InvokeAsync(async () =>
+        return InvokeAsync(() =>
         {
+            var toast = new RtToast(
+                _nextId++,
+                "assignment",
+                $"{e.Title} — {e.City}",
+                e.ReferenceId,
+                e.TeamId,
+                6000);
+
             _toasts.Add(toast);
             StateHasChanged();
 
-            await Task.Delay(5700);
-            toast.Leaving = true;
-            StateHasChanged();
-
-            await Task.Delay(300);
-            _toasts.Remove(toast);
-            StateHasChanged();
+            ScheduleDismiss(toast.Id, toast.DurationMs);
         });
     }
 
-    private void ClickToast(ActiveToast toast)
+    private void ScheduleDismiss(int id, int durationMs)
     {
-        _toasts.Remove(toast);
-        NotifState.Decrement();
-        NotifState.SetRecent(new());
-        StateHasChanged();
-        Nav.NavigateTo(toast.NavigateTo);
-    }
-
-    private void DismissToast(ActiveToast toast)
-    {
-        InvokeAsync(async () =>
+        _ = Task.Delay(durationMs).ContinueWith(_ =>
         {
-            toast.Leaving = true;
-            StateHasChanged();
-            await Task.Delay(300);
-            _toasts.Remove(toast);
-            StateHasChanged();
+            InvokeAsync(() => Dismiss(id));
         });
     }
 
-    // ── Cleanup ────────────────────────────────────────────────────────────
+    private void Dismiss(int id)
+    {
+        _toasts.RemoveAll(t => t.Id == id);
+        StateHasChanged();
+    }
+
+    private void HandleToastClick(RtToast t)
+    {
+        Dismiss(t.Id);
+        Nav.NavigateTo("/team/disaster");
+    }
+
+    private static string IconFor(string kind) => kind switch
+    {
+        "assignment" => "fa-fire",
+        _ => "fa-circle-info"
+    };
+
+    private static string TitleFor(string kind) => kind switch
+    {
+        "assignment" => "New Assignment",
+        _ => "Notification"
+    };
 
     public void Dispose()
     {
-        Hub.OnTeamAssignedToDisaster -= HandleTeamAssigned;
+        TeamHub.OnTeamAssignedToDisaster -= HandleTeamAssigned;
     }
 
-    // ── Model ──────────────────────────────────────────────────────────────
-
-    private class ActiveToast
-    {
-        public string Title { get; }
-        public string Message { get; }
-        public string Icon { get; }
-        public string Color { get; }
-        public string NavigateTo { get; }
-        public bool Leaving { get; set; }
-
-        public ActiveToast(string Title, string Message, string Icon, string Color, string NavigateTo)
-        {
-            this.Title = Title;
-            this.Message = Message;
-            this.Icon = Icon;
-            this.Color = Color;
-            this.NavigateTo = NavigateTo;
-        }
-    }
+    private record RtToast(
+        int Id,
+        string Kind,
+        string Message,
+        string ReferenceId,
+        Guid TeamId,
+        int DurationMs);
 }

@@ -1,175 +1,121 @@
 ﻿/* ═══════════════════════════════════════════════════════════════
-   HubToastContainer.razor.css
-   Floating real-time notification toasts (bottom-right stack).
+   TeamHubToastContainer.razor.css — scoped styles
+   Real-time toast stack, bottom-right, outside the main content flow.
+   Mirrors HubToastContainer.razor.css (admin) using the team-* prefix.
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── Stack ── */
-.hub-toast-stack {
+.team-rt-toast-stack {
     position: fixed;
-    bottom: 24px;
-    right: 24px;
-    z-index: 99999;
+    bottom: var(--sp-6);
+    right: var(--sp-6);
+    z-index: 900;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    pointer-events: none; /* children opt back in */
-    width: 340px;
+    gap: var(--sp-3);
+    max-width: 360px;
 }
 
-/* ── Single toast ── */
-.hub-toast {
-    pointer-events: all;
+.team-rt-toast {
     display: flex;
     align-items: flex-start;
-    gap: 12px;
-    padding: 14px 16px;
-    border-radius: var(--r-lg, 16px);
-    background: var(--bg-surface, #141720);
-    border: 1px solid var(--border-color, rgba(255,255,255,.07));
-    box-shadow: var(--shadow-lg, 0 12px 40px rgba(0,0,0,.6));
+    gap: var(--sp-3);
+    padding: var(--sp-4);
+    border-radius: var(--r-lg);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color-strong);
+    box-shadow: 0 8px 32px rgba(0,0,0,.28), 0 2px 8px rgba(0,0,0,.18);
     cursor: pointer;
-    transition: transform 0.15s ease, opacity 0.15s ease;
-    animation: toastSlideUp 0.3s cubic-bezier(0.16,1,0.3,1);
+    animation: team-toast-in 220ms ease-out;
+    transition: transform var(--t-fast), box-shadow var(--t-fast);
 }
 
-    .hub-toast:hover {
+    .team-rt-toast:hover {
         transform: translateY(-2px);
-        box-shadow: 0 16px 48px rgba(0,0,0,.7);
+        box-shadow: 0 12px 36px rgba(0,0,0,.32), 0 4px 10px rgba(0,0,0,.2);
     }
 
-/* ── Slide-out ── */
-.hub-toast--out {
-    animation: toastSlideOut 0.3s ease forwards;
-}
-
-@keyframes toastSlideUp {
+@keyframes team-toast-in {
     from {
         opacity: 0;
-        transform: translateY(16px);
+        transform: translateX(24px);
     }
 
     to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-@keyframes toastSlideOut {
-    from {
         opacity: 1;
         transform: translateX(0);
     }
-
-    to {
-        opacity: 0;
-        transform: translateX(100%);
-    }
 }
 
-/* ── Color left-border accent ── */
-.hub-toast--critical {
-    border-left: 3px solid var(--color-critical, #ff4d4f);
-}
-
-.hub-toast--success {
-    border-left: 3px solid var(--color-success, #52c41a);
-}
-
-.hub-toast--warning {
-    border-left: 3px solid var(--color-warning, #faad14);
-}
-
-.hub-toast--info {
-    border-left: 3px solid var(--color-info, #1890ff);
-}
-
-/* ── Icon pill ── */
-.hub-toast-icon {
+/* ── Icon ────────────────────────────────────────────────────── */
+.team-rt-toast-icon {
     flex-shrink: 0;
-    width: 36px;
-    height: 36px;
-    border-radius: var(--r-md, 10px);
+    width: 38px;
+    height: 38px;
+    border-radius: var(--r-md);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 15px;
-}
-
-.hub-toast--critical .hub-toast-icon {
+    margin-top: 1px;
     background: var(--color-critical-bg);
     color: var(--color-critical);
 }
 
-.hub-toast--success .hub-toast-icon {
-    background: var(--color-success-bg);
-    color: var(--color-success);
+.team-rt-toast--assignment .team-rt-toast-icon {
+    background: var(--color-critical-bg);
+    color: var(--color-critical);
 }
 
-.hub-toast--warning .hub-toast-icon {
-    background: var(--color-warning-bg);
-    color: var(--color-warning);
-}
-
-.hub-toast--info .hub-toast-icon {
-    background: var(--color-info-bg);
-    color: var(--color-info);
-}
-
-/* ── Body ── */
-.hub-toast-body {
+/* ── Body ────────────────────────────────────────────────────── */
+.team-rt-toast-body {
     flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
 }
 
-.hub-toast-title {
-    font-family: var(--font-body, 'DM Sans', sans-serif);
+.team-rt-toast-title {
+    font-family: var(--font-display);
     font-size: 13px;
     font-weight: 700;
-    color: var(--text-primary, #e8eaf0);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    color: var(--text-primary);
 }
 
-.hub-toast-msg {
-    font-family: var(--font-body, 'DM Sans', sans-serif);
-    font-size: 12px;
-    color: var(--text-secondary, #8a92a8);
-    line-height: 1.4;
+.team-rt-toast-msg {
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    line-height: 1.45;
     display: -webkit-box;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
 
-/* ── Close button ── */
-.hub-toast-close {
+/* ── Close button ────────────────────────────────────────────── */
+.team-rt-toast-close {
     flex-shrink: 0;
-    background: transparent;
+    background: none;
     border: none;
-    color: var(--text-muted, #525b73);
-    cursor: pointer;
-    padding: 2px 4px;
-    border-radius: var(--r-sm, 6px);
+    color: var(--text-muted);
     font-size: 12px;
-    line-height: 1;
-    transition: color 0.15s ease, background 0.15s ease;
+    padding: 4px;
+    border-radius: var(--r-sm);
+    transition: background var(--t-fast), color var(--t-fast);
 }
 
-    .hub-toast-close:hover {
-        color: var(--text-primary, #e8eaf0);
-        background: var(--bg-surface-2, #1a1e2a);
+    .team-rt-toast-close:hover {
+        background: var(--bg-surface-2);
+        color: var(--text-primary);
     }
 
-/* ── Responsive ── */
-@media (max-width: 480px) {
-    .hub-toast-stack {
-        bottom: 12px;
-        right: 12px;
-        left: 12px;
-        width: auto;
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 600px) {
+    .team-rt-toast-stack {
+        left: var(--sp-4);
+        right: var(--sp-4);
+        bottom: var(--sp-4);
+        max-width: none;
     }
 }

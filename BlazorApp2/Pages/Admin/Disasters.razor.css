@@ -256,6 +256,11 @@
     color: #dc2626;
 }
 
+.badge-archived {
+    background: var(--bg-surface-3);
+    color: var(--text-secondary);
+}
+
 /* Buttons */
 .btn {
     display: inline-flex;

@@ -4,6 +4,8 @@
 @using BlazorApp2.Responses
 @inject ServiceApi Api
 @inject NavigationManager Nav
+@inject TeamHubService HubService
+@implements IAsyncDisposable
 
 <div class="tdash-page">
 
@@ -12,10 +14,15 @@
             <i class="fa-solid fa-house"></i>
             Dashboard
         </h1>
-        <span class="tdash-role-badge @(_isLeader ? "tdash-role-badge--leader" : "")">
-            <i class="fa-solid @(_isLeader ? "fa-star" : "fa-user")"></i>
-            @(_isLeader ? "Team Leader" : "Team Member")
-        </span>
+        <div class="tdash-header-right">
+            <span class="tdash-live-indicator">
+                <span class="tdash-pulse"></span>Live
+            </span>
+            <span class="tdash-role-badge @(_isLeader ? "tdash-role-badge--leader" : "")">
+                <i class="fa-solid @(_isLeader ? "fa-star" : "fa-user")"></i>
+                @(_isLeader ? "Team Leader" : "Team Member")
+            </span>
+        </div>
     </div>
 
     @if (_loading)
@@ -137,6 +144,8 @@
 
     protected override async Task OnInitializedAsync()
     {
+        HubService.OnTeamAssignedToDisaster += HandleTeamAssigned;
+
         var meResult = await Api.GetCurrentTeamMemberInfoAsync();
         if (!meResult.IsSuccess || meResult.Data is null)
         {
@@ -172,5 +181,32 @@
             _resourceCount = resResult.Data?.TotalCount ?? 0;
 
         _loading = false;
+    }
+
+    // ── Real-time: refresh the "active disaster" card the instant
+    //    this team gets assigned, without waiting for a page reload.
+    //    The toast itself is handled separately by TeamHubToastContainer
+    //    (rendered once from TeamLayout) — this just keeps THIS page's
+    //    local state in sync if it happens to be open.
+    private async Task HandleTeamAssigned(Services.TeamAssignedEvent e)
+    {
+        if (e.TeamId != _teamId) return; // event is broadcast hub-wide; filter to our team
+
+        var disasterTask = Api.GetTeamDisasters(_teamId, 1, 1);
+        var disasterResult = await disasterTask;
+        if (disasterResult.IsSuccess && disasterResult.Data?.Items.Count > 0)
+        {
+            var latest = disasterResult.Data.Items.First();
+            if (latest.Status != "Closed")
+                _assignedDisaster = latest;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        HubService.OnTeamAssignedToDisaster -= HandleTeamAssigned;
+        return ValueTask.CompletedTask;
     }
 }
