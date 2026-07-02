@@ -25,6 +25,43 @@
         }
     </div>
 
+    @if (_disaster is not null)
+    {
+        @* ════ LIFECYCLE STEPPER ════
+             Purely presentational — mirrors the same _disaster.Status values
+             already used to gate the action buttons below, so it can never
+             drift out of sync with what's actually allowed. *@
+        <div class="tdd-stepper" role="list" aria-label="Disaster lifecycle status">
+            @foreach (var step in _lifecycleSteps)
+            {
+                var state = StepState(step.Status);
+                <div class="tdd-step tdd-step--@state @(step.Status == "Archived" && state == "current" ? "tdd-step--archived-final" : "")" role="listitem">
+                    <div class="tdd-step-marker">
+                        @if (state == "done")
+                        {
+                            <i class="fa-solid fa-check"></i>
+                        }
+                        else
+                        {
+                            <i class="fa-solid @step.Icon"></i>
+                        }
+                    </div>
+                    <div class="tdd-step-text">
+                        <span class="tdd-step-label">@step.Label</span>
+                        @if (state == "current")
+                        {
+                            <span class="tdd-step-caption">@step.Caption</span>
+                        }
+                    </div>
+                </div>
+                @if (step.Status != _lifecycleSteps[^1].Status)
+                {
+                    <div class="tdd-step-connector tdd-step-connector--@(state == "done" ? "done" : "pending")"></div>
+                }
+            }
+        </div>
+    }
+
     @if (_toast is not null)
     {
         <div class="tdd-toast tdd-toast--@_toast.Type">
@@ -94,40 +131,49 @@
                     Update Location
                 </button>
 
-                @* Team Status: two independent actions, always enabled. The backend
-                     validates whether the transition makes sense for the team's
-                     current status and returns an error message via toast if not. *@
+                @* Team Status: only the action that is a valid transition from the
+                     team's *current* status is rendered. "Set Returning" only makes
+                     sense while the team is Active (at the disaster); "Set Active"
+                     only makes sense while the team is Returning (heading back to
+                     base). The backend still re-validates on submit, but the UI no
+                     longer offers a button that is guaranteed to fail. *@
                 <span class="tdd-status-badge" title="Current team status">
                     @_teamStatus
                 </span>
 
-                <button class="tdd-action-btn tdd-action-btn--warning"
-                        @onclick='() => ConfirmTeamStatusAsync("returning")'
-                        disabled="@_teamStatusBusy">
-                    @if (_teamStatusBusy && _teamStatusPendingAction == "returning")
-                    {
-                        <span class="spinner spinner-sm"></span>
-                    }
-                    else
-                    {
-                        <i class="fa-solid fa-rotate-left"></i>
-                    }
-                    Set Returning
-                </button>
+                @if (CanSetReturning)
+                {
+                    <button class="tdd-action-btn tdd-action-btn--warning"
+                            @onclick='() => ConfirmTeamStatusAsync("returning")'
+                            disabled="@_teamStatusBusy">
+                        @if (_teamStatusBusy && _teamStatusPendingAction == "returning")
+                        {
+                            <span class="spinner spinner-sm"></span>
+                        }
+                        else
+                        {
+                            <i class="fa-solid fa-rotate-left"></i>
+                        }
+                        Set Returning
+                    </button>
+                }
 
-                <button class="tdd-action-btn tdd-action-btn--success"
-                        @onclick='() => ConfirmTeamStatusAsync("active")'
-                        disabled="@_teamStatusBusy">
-                    @if (_teamStatusBusy && _teamStatusPendingAction == "active")
-                    {
-                        <span class="spinner spinner-sm"></span>
-                    }
-                    else
-                    {
-                        <i class="fa-solid fa-play"></i>
-                    }
-                    Set Active
-                </button>
+                @if (CanSetActive)
+                {
+                    <button class="tdd-action-btn tdd-action-btn--success"
+                            @onclick='() => ConfirmTeamStatusAsync("active")'
+                            disabled="@_teamStatusBusy">
+                        @if (_teamStatusBusy && _teamStatusPendingAction == "active")
+                        {
+                            <span class="spinner spinner-sm"></span>
+                        }
+                        else
+                        {
+                            <i class="fa-solid fa-play"></i>
+                        }
+                        Set Active
+                    </button>
+                }
 
                 @* Assign Resources — only while disaster is InProgress *@
                 @if (_disaster.Status == "InProgress")
@@ -285,16 +331,25 @@
                 {
                     <div class="tdd-person-list">
                         <div class="tdd-person-header">
-                            <span>Name</span><span>Age</span><span>Phone</span><span>Status</span><span>Notes</span>
+                            <span>Name</span><span>Age</span><span>Phone</span><span>Status</span><span>Notes</span><span></span>
                         </div>
                         @foreach (var p in _disasterDetail!.AffectedPersons)
                         {
+                            var person = p;
                             <div class="tdd-person-row">
-                                <span class="tdd-person-name">@p.Name</span>
-                                <span>@p.Age</span>
-                                <span>@p.Phone</span>
-                                <span class="tdd-person-status tdd-pstatus--@p.Status.ToLower()">@p.Status</span>
-                                <span class="tdd-person-notes">@(p.Notes ?? "—")</span>
+                                <span class="tdd-person-name">@person.Name</span>
+                                <span>@person.Age</span>
+                                <span>@person.Phone</span>
+                                <span class="tdd-person-status tdd-pstatus--@person.Status.ToLower()">@person.Status</span>
+                                <span class="tdd-person-notes">@(person.Notes ?? "—")</span>
+                                @* PAUSED: AffectedPersonDto has no confirmed `Id` property, so we can't
+                                     call UpdateAffectedPersonAsync(disasterId, personId, ...) yet — the modal
+                                     and SubmitEditPersonAsync below are ready, just waiting on the real id
+                                     field name to re-enable this button. *@
+                                @if (_isLeader && _disaster.Status == "Resolved")
+                                {
+                                    <span></span>
+                                }
                             </div>
                         }
                     </div>
@@ -631,8 +686,13 @@
                 <button class="modal-close" @onclick="CloseResourceAction"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="modal-body">
-                <label class="tdd-form-label">Quantity</label>
-                <input type="number" class="tdd-form-input" min="1"
+                <label class="tdd-form-label">
+                    Quantity
+                    <span style="color:var(--text-muted);font-weight:400">
+                        (@_resourceActionMaxQty remaining)
+                    </span>
+                </label>
+                <input type="number" class="tdd-form-input" min="1" max="@_resourceActionMaxQty"
                        @bind="_resourceActionQty" placeholder="Enter quantity" />
             </div>
             <div class="modal-footer">
@@ -697,6 +757,59 @@
                         <span class="spinner spinner-sm"></span>
                     }
                     Add Person
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ── Edit Affected Person Modal ── -->
+@if (_showEditPersonModal)
+{
+    <div class="modal-overlay" @onclick="CloseEditPersonModal">
+        <div class="modal" style="max-width:540px" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <div class="modal-title">Edit Affected Person</div>
+                <button class="modal-close" @onclick="CloseEditPersonModal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="tdd-form-grid">
+                    <div class="tdd-form-group">
+                        <label class="tdd-form-label">Name *</label>
+                        <input class="tdd-form-input" @bind="_editPerson.Name" placeholder="Full name" />
+                    </div>
+                    <div class="tdd-form-group">
+                        <label class="tdd-form-label">Age *</label>
+                        <input type="number" class="tdd-form-input" @bind="_editPerson.Age" placeholder="Age" />
+                    </div>
+                    <div class="tdd-form-group">
+                        <label class="tdd-form-label">Phone</label>
+                        <input class="tdd-form-input" @bind="_editPerson.Phone" placeholder="Phone number" />
+                    </div>
+                    <div class="tdd-form-group">
+                        <label class="tdd-form-label">Status *</label>
+                        <select class="tdd-form-input" @bind="_editPerson.Status">
+                            <option value="">— Select —</option>
+                            <option value="Injured">Injured</option>
+                            <option value="Missing">Missing</option>
+                            <option value="Dead">Dead</option>
+                            <option value="Evacuated">Evacuated</option>
+                        </select>
+                    </div>
+                    <div class="tdd-form-group tdd-form-group--full">
+                        <label class="tdd-form-label">Notes</label>
+                        <textarea class="tdd-form-input" rows="2" @bind="_editPerson.Notes" placeholder="Optional notes"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="tdd-btn-secondary" @onclick="CloseEditPersonModal">Cancel</button>
+                <button class="tdd-btn-primary" @onclick="SubmitEditPersonAsync" disabled="@_editPersonBusy">
+                    @if (_editPersonBusy)
+                    {
+                        <span class="spinner spinner-sm"></span>
+                    }
+                    Save Changes
                 </button>
             </div>
         </div>
@@ -844,7 +957,45 @@
     private TeamLocation? _teamLocation;
     private bool _isLeader;
     private Guid _teamId;
-    private string _teamStatus = "InProgress";
+
+    // ── Lifecycle stepper ──────────────────────────────────────────
+    // Order mirrors the real transition path enforced by the action buttons
+    // below (InProgress -> Resolved -> Closed -> Archived). Captions are just
+    // a plain-language summary of what's gated behind each @if in this file,
+    // kept here so they're easy to update if an action moves between statuses.
+    private readonly record struct LifecycleStep(string Status, string Label, string Icon, string Caption);
+
+    private readonly List<LifecycleStep> _lifecycleSteps = new()
+    {
+        new("InProgress", "In Progress", "fa-truck-fast", "Assign resources, then resolve when the response is complete."),
+        new("Resolved",   "Resolved",    "fa-clipboard-check", "Log consumed/returned/damaged resources, affected persons, and volunteer evaluations, then close."),
+        new("Closed",     "Closed",      "fa-lock", "Generate the after-action report, then archive."),
+        new("Archived",   "Archived",    "fa-box-archive", "Disaster is archived — records remain viewable in the Report tab."),
+    };
+
+    // "done" = earlier in the sequence than the disaster's current status,
+    // "current" = matches it, "pending" = hasn't been reached yet.
+    private string StepState(string stepStatus)
+    {
+        if (_disaster is null) return "pending";
+        var order = _lifecycleSteps.FindIndex(s => s.Status == stepStatus);
+        var current = _lifecycleSteps.FindIndex(s => s.Status == _disaster.Status);
+        if (current < 0) return "pending"; // unknown status — fail safe, don't claim progress
+        if (order < current) return "done";
+        return order == current ? "current" : "pending";
+    }
+
+    // NOTE: "InProgress" here is just a harmless placeholder shown only during the
+    // very first _loading=true render (the action buttons that read this value are
+    // never rendered until LoadDisasterAsync has already populated it from the
+    // server). Confirmed against the live API response: the "active" state is
+    // actually called "OnMission" on the backend, not "Active".
+    private string _teamStatus = "OnMission";
+
+    // A team can only be sent "Returning" while it is currently OnMission (at the
+    // disaster), and can only be set back to "OnMission" while it is Returning.
+    private bool CanSetReturning => _teamStatus == "OnMission";
+    private bool CanSetActive => _teamStatus == "Returning";
 
     // Tabs — Report tab is added dynamically once disaster is Closed
     private readonly List<string> _tabs = new() { "Resources", "Affected Persons", "Volunteers" };
@@ -879,12 +1030,19 @@
     private string _resourceActionVerb = "";
     private string _resourceActionType = "";
     private int _resourceActionQty;
+    private int _resourceActionMaxQty;
     private bool _resourceActionBusy;
 
     // Affected persons
     private bool _showAddPersonModal;
     private bool _personBusy;
     private BlazorApp2.Requests.AffectedPersonDto _newPerson = new();
+
+    // Affected persons — edit
+    private bool _showEditPersonModal;
+    private bool _editPersonBusy;
+    private Guid _editPersonId;
+    private BlazorApp2.Requests.AffectedPersonDto _editPerson = new();
 
     // Volunteers — paginated
     private List<DisasterVolunteerResponse> _volunteers = new();
@@ -943,10 +1101,13 @@
         await LoadDisasterAsync();
     }
 
-    private async Task LoadDisasterAsync()
+    private async Task LoadDisasterAsync(bool showFullLoader = true)
     {
-        _loading = true;
-        StateHasChanged();
+        if (showFullLoader)
+        {
+            _loading = true;
+            StateHasChanged();
+        }
 
         var disasterTask = Api.GetCurrentTeamDisaster(_teamId);
         var locationTask = Api.GetCurrentTeamLocation(_teamId);
@@ -1016,7 +1177,8 @@
         if (teamResult.IsSuccess && teamResult.Data is not null)
             _teamStatus = teamResult.Data.Status;
 
-        _loading = false;
+        if (showFullLoader)
+            _loading = false;
         StateHasChanged();
     }
 
@@ -1040,10 +1202,46 @@
         {
             _volunteers = result.Data.Items.ToList();
             _volTotalCount = result.Data.TotalCount;
+
+            // STOPGAP: DisasterVolunteerResponse has no "already evaluated" field, so
+            // the server can't tell us who's been scored. Until that's added
+            // server-side, fall back to a per-browser localStorage record so the
+            // badge at least survives a page refresh. This does NOT protect against
+            // a different leader/device evaluating the same volunteer — only the
+            // backend rejecting a duplicate write actually guarantees that.
+            foreach (var v in _volunteers)
+            {
+                if (await IsEvaluatedLocallyAsync(v.Id))
+                    _evaluatedVolunteerIds.Add(v.Id);
+            }
         }
 
         _volunteersLoading = false;
         StateHasChanged();
+    }
+
+    private string EvalStorageKey(Guid volunteerId) => $"eghatha:eval:{_disaster?.DisasterId}:{volunteerId}";
+
+    private async Task<bool> IsEvaluatedLocallyAsync(Guid volunteerId)
+    {
+        try
+        {
+            var value = await JS.InvokeAsync<string?>("localStorage.getItem", EvalStorageKey(volunteerId));
+            return value == "1";
+        }
+        catch
+        {
+            return false; // localStorage unavailable (e.g. pre-render) — fail open, backend still guards
+        }
+    }
+
+    private async Task MarkEvaluatedLocallyAsync(Guid volunteerId)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", EvalStorageKey(volunteerId), "1");
+        }
+        catch { /* non-critical */ }
     }
 
     private async Task GoToVolPage(int page)
@@ -1226,6 +1424,7 @@
         _assignBusy = true;
         StateHasChanged();
 
+        int totalQtyDispatched = 0;
         bool anyError = false;
         foreach (var (resourceId, qty) in _assignQty)
         {
@@ -1239,15 +1438,49 @@
 
             var result = await Api.DispatchResourceAsync(_disaster!.DisasterId, request);
             if (!result.IsSuccess) anyError = true;
+            else totalQtyDispatched += qty;
         }
-
-        ShowToast(
-            anyError ? "Some resources failed to dispatch." : "Resources dispatched.",
-            anyError ? "error" : "success");
 
         _showAssignResourceModal = false;
         _assignBusy = false;
-        await LoadDisasterAsync();
+
+        // The dispatch calls above succeeded server-side, but a GET right after a
+        // write can still return stale data (caching / read-model lag). Retry the
+        // reload a few times instead of showing an empty-looking list after a
+        // successful dispatch.
+        int sentBefore = _disasterDetail?.Resources.Sum(r => r.Sent) ?? 0;
+        bool caughtUp = totalQtyDispatched == 0 ||
+            await ReloadWithRetryAsync(
+                () => (_disasterDetail?.Resources.Sum(r => r.Sent) ?? 0) >= sentBefore + totalQtyDispatched,
+                showFullLoader: false);
+
+        if (anyError)
+        {
+            ShowToast("Some resources failed to dispatch.", "error");
+        }
+        else if (!caughtUp)
+        {
+            ShowToast("Resources dispatched, but the list is still catching up — refresh in a moment.", "error");
+        }
+        else
+        {
+            ShowToast("Resources dispatched.", "success");
+        }
+    }
+
+    // Reloads the disaster and retries a few times if `isReady` doesn't hold yet —
+    // covers backend read-after-write lag so a successful add/dispatch doesn't
+    // appear to have silently done nothing.
+    private async Task<bool> ReloadWithRetryAsync(Func<bool> isReady, int maxAttempts = 6, int delayMs = 500, bool showFullLoader = true)
+    {
+        for (int attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            await LoadDisasterAsync(showFullLoader);
+            if (isReady()) return true;
+            if (attempt < maxAttempts - 1)
+                await Task.Delay(delayMs);
+        }
+        return false;
     }
 
     // ── Resource actions (Consume / Return / Damage) ───────────────
@@ -1256,18 +1489,29 @@
         _resourceActionTarget = r;
         _resourceActionType = type;
         _resourceActionVerb = type switch { "consume" => "Consume", "return" => "Return", "damage" => "Mark Damaged", _ => "" };
-        _resourceActionQty = 1;
+
+        // Remaining = sent minus whatever's already been accounted for. Consume,
+        // Return, and Damage all draw from this same outstanding pool.
+        _resourceActionMaxQty = Math.Max(0, r.Sent - r.Consumed - r.Returned - r.Damaged);
+        _resourceActionQty = _resourceActionMaxQty > 0 ? 1 : 0;
     }
 
     private void CloseResourceAction()
     {
         _resourceActionTarget = null;
         _resourceActionQty = 0;
+        _resourceActionMaxQty = 0;
     }
 
     private async Task SubmitResourceActionAsync()
     {
         if (_resourceActionTarget is null || _disaster is null) return;
+
+        if (_resourceActionQty <= 0 || _resourceActionQty > _resourceActionMaxQty)
+        {
+            ShowToast($"Quantity must be between 1 and {_resourceActionMaxQty}.", "error");
+            return;
+        }
 
         _resourceActionBusy = true;
         StateHasChanged();
@@ -1331,6 +1575,68 @@
         _personBusy = false;
     }
 
+    // ── Affected persons — edit ──────────────────────────────────────
+    // NOTE: UpdateAffectedPersonRequest's exact field names are inferred from
+    // AffectedPersonDto (Name/Age/Phone/Status/Notes) — I don't have the Requests
+    // file that defines it. If the property names differ, this won't compile;
+    // send me Requests/UpdateAffectedPersonRequest.cs and I'll line it up exactly.
+    private void OpenEditPersonModal(Guid id, string name, int age, string? phone, string status, string? notes)
+    {
+        _editPersonId = id;
+        _editPerson = new BlazorApp2.Requests.AffectedPersonDto
+        {
+            Name = name,
+            Age = age,
+            Phone = phone,
+            Status = status,
+            Notes = notes
+        };
+        _showEditPersonModal = true;
+    }
+
+    private void CloseEditPersonModal()
+    {
+        _showEditPersonModal = false;
+        _editPerson = new();
+    }
+
+    private async Task SubmitEditPersonAsync()
+    {
+        if (_disaster is null) return;
+        if (string.IsNullOrWhiteSpace(_editPerson.Name) || string.IsNullOrWhiteSpace(_editPerson.Status))
+        {
+            ShowToast("Name and Status are required.", "error");
+            return;
+        }
+
+        _editPersonBusy = true;
+        StateHasChanged();
+
+        var request = new UpdateAffectedPersonRequest
+        {
+            Name = _editPerson.Name,
+            Age = _editPerson.Age,
+            Phone = _editPerson.Phone,
+            Status = _editPerson.Status,
+            Notes = _editPerson.Notes
+        };
+
+        var result = await Api.UpdateAffectedPersonAsync(_disaster.DisasterId, _editPersonId, request);
+
+        if (result.IsSuccess)
+        {
+            ShowToast("Person updated.", "success");
+            CloseEditPersonModal();
+            await LoadDisasterAsync();
+        }
+        else
+        {
+            ShowToast(result.ErrorDetail ?? "Failed to update person.", "error");
+        }
+
+        _editPersonBusy = false;
+    }
+
     // ── Volunteer evaluation ───────────────────────────────────────
     private void OpenEvalModal(DisasterVolunteerResponse v)
     {
@@ -1376,6 +1682,7 @@
         if (result.IsSuccess)
         {
             _evaluatedVolunteerIds.Add(_evalVolunteer.Id);  // mark locally so button becomes badge
+            await MarkEvaluatedLocallyAsync(_evalVolunteer.Id); // survive a page refresh
             ShowToast($"Evaluation submitted for {_evalVolunteer.Name}.", "success");
             CloseEvalModal();
         }

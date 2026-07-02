@@ -2,6 +2,8 @@
 // RESPONSE MODELS
 // ═══════════════════════════════════════════════════════════════
 
+using System.Text.Json.Serialization;
+
 namespace BlazorApp2.Responses
 {
     public class DisasterDetailResponse : DisasterResponse
@@ -15,6 +17,8 @@ namespace BlazorApp2.Responses
 
         public List<ResourceDto> Resources { get; set; } = new();
         public ReportDto? Report { get; set; }
+
+        [JsonPropertyName("affectedPeople")]
         public List<AffectedPersonDto> AffectedPersons { get; set; } = new();
 
 

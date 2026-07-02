@@ -101,6 +101,55 @@
             }
         </div>
 
+        @* ── Team status — separate from any single disaster, so a team can be
+             corrected here even if its last disaster was archived while the
+             team status was still "Returning". ── *@
+        @if (_isLeader && _teamInfo is not null && (_teamInfo.Status == "OnMission" || _teamInfo.Status == "Returning"))
+        {
+            <div class="tdash-quick-links">
+                <h2 class="tdash-section-title">Team Status</h2>
+                <div class="tdash-links-grid">
+                    <span class="tdash-role-badge">Current: @_teamInfo.Status</span>
+                    @if (_teamInfo.Status == "OnMission")
+                    {
+                        <button class="tdash-link" @onclick='() => SetTeamStatusAsync("returning")' disabled="@_statusBusy">
+                            @if (_statusBusy)
+                            {
+                                <span class="spinner spinner-sm"></span>
+                            }
+                            else
+                            {
+
+                                <i class="fa-solid fa-rotate-left"></i>
+                            }
+                            <span>Set Returning</span>
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="tdash-link" @onclick='() => SetTeamStatusAsync("active")' disabled="@_statusBusy">
+                            @if (_statusBusy)
+                            {
+                                <span class="spinner spinner-sm"></span>
+                            }
+                            else
+                            {
+
+                                <i class="fa-solid fa-play"></i>
+                            }
+                            <span>Set Active</span>
+                        </button>
+                    }
+                    @if (_statusMessage is not null)
+                    {
+                        <span style="font-size:13px;color:@(_statusOk ? "var(--color-success)" : "var(--color-critical)")">
+                            @_statusMessage
+                        </span>
+                    }
+                </div>
+            </div>
+        }
+
         <!-- ── Quick links ── -->
         <div class="tdash-quick-links">
             <h2 class="tdash-section-title">Quick Links</h2>
@@ -141,6 +190,9 @@
     private TeamDisasterResponse? _assignedDisaster;
     private int _resourceCount;
     private Guid _teamId;
+    private bool _statusBusy;
+    private string? _statusMessage;
+    private bool _statusOk;
 
     protected override async Task OnInitializedAsync()
     {
@@ -202,6 +254,37 @@
         }
 
         await InvokeAsync(StateHasChanged);
+    }
+
+    // Lets a leader correct the team's status directly, independent of any
+    // single disaster — needed because the only other place to change it
+    // (TeamDisasterDetail) can become unreachable once that disaster is
+    // Archived, leaving a team stuck on "Returning" with no way back to "Active".
+    private async Task SetTeamStatusAsync(string newStatus)
+    {
+        _statusBusy = true;
+        _statusMessage = null;
+        StateHasChanged();
+
+        var result = newStatus == "returning"
+            ? await Api.ReturningTeamAsync(_teamId)
+            : await Api.ActivateTeamAsync(_teamId);
+
+        _statusOk = result.IsSuccess;
+
+        if (result.IsSuccess)
+        {
+            var teamResult = await Api.GetTeamByIdAsync(_teamId);
+            if (teamResult.IsSuccess && teamResult.Data is not null)
+                _teamInfo = teamResult.Data;
+            _statusMessage = "Status updated.";
+        }
+        else
+        {
+            _statusMessage = result.ErrorDetail ?? "Failed to update team status.";
+        }
+
+        _statusBusy = false;
     }
 
     public ValueTask DisposeAsync()
