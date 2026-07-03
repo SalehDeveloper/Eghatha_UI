@@ -824,7 +824,7 @@
             <div class="modal-header">
                 <div>
                     <div class="modal-title">Evaluate @_evalVolunteer.Name</div>
-                    <div class="modal-subtitle">Score each area from 1 (lowest) to 10 (highest)</div>
+                    <div class="modal-subtitle">Score each area from 1 (lowest) to 5 (highest)</div>
                 </div>
                 <button class="modal-close" @onclick="CloseEvalModal"><i class="fa-solid fa-xmark"></i></button>
             </div>
@@ -838,7 +838,7 @@
                             Commitment
                         </div>
                         <div class="tdd-star-row">
-                            @for (int s = 1; s <= 10; s++)
+                            @for (int s = 1; s <= 5; s++)
                             {
                                 var score = s;
                                 <button class="tdd-star-btn @(_evalCommitment >= score ? "tdd-star-btn--active" : "")"
@@ -856,7 +856,7 @@
                             Skill
                         </div>
                         <div class="tdd-star-row">
-                            @for (int s = 1; s <= 10; s++)
+                            @for (int s = 1; s <= 5; s++)
                             {
                                 var score = s;
                                 <button class="tdd-star-btn @(_evalSkill >= score ? "tdd-star-btn--active" : "")"
@@ -874,7 +874,7 @@
                             Safety
                         </div>
                         <div class="tdd-star-row">
-                            @for (int s = 1; s <= 10; s++)
+                            @for (int s = 1; s <= 5; s++)
                             {
                                 var score = s;
                                 <button class="tdd-star-btn @(_evalSafety >= score ? "tdd-star-btn--active" : "")"
@@ -892,7 +892,7 @@
                             Teamwork
                         </div>
                         <div class="tdd-star-row">
-                            @for (int s = 1; s <= 10; s++)
+                            @for (int s = 1; s <= 5; s++)
                             {
                                 var score = s;
                                 <button class="tdd-star-btn @(_evalTeamwork >= score ? "tdd-star-btn--active" : "")"
@@ -910,7 +910,7 @@
                             Initiative
                         </div>
                         <div class="tdd-star-row">
-                            @for (int s = 1; s <= 10; s++)
+                            @for (int s = 1; s <= 5; s++)
                             {
                                 var score = s;
                                 <button class="tdd-star-btn @(_evalInitiative >= score ? "tdd-star-btn--active" : "")"

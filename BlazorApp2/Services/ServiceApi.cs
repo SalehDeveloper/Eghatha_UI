@@ -780,9 +780,9 @@ string cvContentType)
             return await HandleErrorResponseAsync<string>(response);
         }
 
-        public async Task<ApiResult<string>> EvaluateVolunteerAsync(Guid disasterId, Guid volunteerId, EvaluateVolunteerRequest request)
+        public async Task<ApiResult<string>> EvaluateVolunteerAsync(Guid disasterId, Guid volunteerid, EvaluateVolunteerRequest request)
         {
-            var response = await _httpClient.PostAsJsonAsync($"api/v1/disasters/{disasterId}/volunteers/{volunteerId}", request);
+            var response = await _httpClient.PostAsJsonAsync($"api/v1/disasters/{disasterId}/volunteers/{volunteerid}/evaluate", request);
             if (response.IsSuccessStatusCode)
                 return ApiResult<string>.Success("");
             return await HandleErrorResponseAsync<string>(response);
