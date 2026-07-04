@@ -447,7 +447,8 @@
     },
 
     // ── Mini map for Update Team Location modal ──────────────────────
-    // Uses the same CARTO tiles, Syria bounds, and pin style as DersLiveMap.
+    // Same look & interaction as the Report Disaster map: OSM tiles,
+    // click-hint overlay, pulsing pin + styled popup (team-blue theme).
     initLocationMap: function (lat, lng) {
         var el = document.getElementById('teamLocationMap');
         if (!el) { console.error('[mapInterop] teamLocationMap div not found'); return; }
@@ -457,34 +458,29 @@
             delete this._maps['teamLocationMap'];
         }
 
-        // ── Inject popup + pin styles once (mirrors live-map.js) ──────
-        if (!document.getElementById('ders-location-map-styles')) {
+        // ── Shared styles — same block used by initDisasterMap/initCreateMap ─
+        if (!document.getElementById('ders-map-styles')) {
             var s = document.createElement('style');
-            s.id = 'ders-location-map-styles';
+            s.id = 'ders-map-styles';
             s.textContent = [
-                '@keyframes ders-loc-pulse{',
-                '0%,100%{box-shadow:0 0 0 3px rgba(59,130,246,.5),0 2px 8px rgba(0,0,0,.5)}',
-                '50%{box-shadow:0 0 0 9px rgba(59,130,246,0),0 2px 8px rgba(0,0,0,.5)}}',
-                '.ders-loc-pin{background:transparent!important;border:none!important}',
-                '.ders-loc-popup .leaflet-popup-content-wrapper{',
+                '@keyframes ders-pulse{',
+                '0%,100%{box-shadow:0 0 0 2px rgba(59,130,246,.27),0 2px 8px rgba(0,0,0,.5)}',
+                '50%{box-shadow:0 0 0 8px transparent,0 2px 8px rgba(0,0,0,.5)}}',
+                '.ders-disaster-pin,.ders-team-pin{background:transparent!important;border:none!important}',
+                '.ders-popup .leaflet-popup-content-wrapper{',
                 '  background:#0f172a;border:1px solid #1e293b;border-radius:12px;',
                 '  box-shadow:0 8px 32px rgba(0,0,0,.6);color:#f1f5f9}',
-                '.ders-loc-popup .leaflet-popup-tip{background:#0f172a}',
-                '.ders-loc-popup .leaflet-popup-close-button{color:#64748b!important}',
+                '.ders-popup .leaflet-popup-tip{background:#0f172a}',
+                '.ders-popup .leaflet-popup-close-button{color:#64748b!important}',
             ].join('');
             document.head.appendChild(s);
         }
 
-        var dark = document.documentElement.dataset.theme !== 'light';
-        var tiles = dark
-            ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-            : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-
-        // Syria bounds — same constants as DersLiveMap
-        var SYRIA_CENTER = [34.8, 38.9];
+        var SYRIA_CENTER = [34.8021, 38.9968];
         var SYRIA_BOUNDS = [[32.3, 35.6], [37.3, 42.4]];
+        var TEAM_COLOR = '#3b82f6'; // blue — team theme
 
-        // If the team has a real position use it; otherwise fall back to Syria center
+        // If the team already has a real position, center on it; otherwise Syria overview
         var hasPos = (lat !== 0 || lng !== 0);
         var startCenter = hasPos ? [lat, lng] : SYRIA_CENTER;
         var startZoom = hasPos ? 10 : 7;
@@ -496,79 +492,109 @@
             maxZoom: 17,
             maxBounds: SYRIA_BOUNDS,
             maxBoundsViscosity: 0.9,
-            zoomControl: true,
+            zoomControl: false,
         });
 
-        L.tileLayer(tiles, {
-            attribution: '© <a href="https://carto.com">CARTO</a> · © <a href="https://openstreetmap.org">OpenStreetMap</a>',
-            subdomains: 'abcd',
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        // ── OSM tiles — same source as Report Disaster map ────────────
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
             maxZoom: 19,
         }).addTo(map);
 
-        // ── Custom pin icon (matches DersLiveMap team-pin style) ───────
+        // ── Click-hint overlay (disappears after first pin drop) ──────
+        var hint = document.createElement('div');
+        hint.id = 'teamLocationMapHint';
+        hint.style.cssText = [
+            'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);',
+            'background:rgba(15,23,42,.82);color:#f1f5f9;',
+            'padding:10px 18px;border-radius:10px;border:1px solid #1e293b;',
+            'font-size:13px;font-family:\'DM Sans\',sans-serif;',
+            'pointer-events:none;z-index:1000;',
+            'display:flex;align-items:center;gap:8px;',
+        ].join('');
+        hint.innerHTML = '<i class="fa-solid fa-hand-pointer" style="color:' + TEAM_COLOR + '"></i> Click the map to set the team\'s location';
+        el.style.position = 'relative';
+        el.appendChild(hint);
+        if (hasPos) hint.style.display = 'none'; // already have a pin, no need to prompt
+
+        // ── Pulsing pin — mirrors detail-map.js / Report Disaster pin ──
         function makePinIcon() {
             return L.divIcon({
                 html: '<div style="' +
-                    'width:34px;height:34px;border-radius:50%;' +
-                    'background:#0f172a;border:3px solid #3b82f6;' +
+                    'width:38px;height:38px;border-radius:50%;' +
+                    'background:#0f172a;border:3px solid ' + TEAM_COLOR + ';' +
                     'display:flex;align-items:center;justify-content:center;' +
-                    'font-size:14px;color:#3b82f6;' +
-                    'animation:ders-loc-pulse 1.8s ease infinite;' +
-                    '">' +
+                    'font-size:15px;color:' + TEAM_COLOR + ';' +
+                    'animation:ders-pulse 1.8s ease infinite;' +
+                    'box-shadow:0 0 0 2px rgba(59,130,246,.27),0 2px 8px rgba(0,0,0,.5)">' +
                     '<i class="fa-solid fa-location-dot"></i>' +
                     '</div>',
-                className: 'ders-loc-pin',
-                iconSize: [34, 34],
-                iconAnchor: [17, 17],
-                popupAnchor: [0, -22],
+                className: 'ders-team-pin',
+                iconSize: [38, 38],
+                iconAnchor: [19, 19],
+                popupAnchor: [0, -24],
             });
+        }
+
+        // ── Popup — mirrors Report Disaster popup layout ───────────────
+        function makePopup(plat, plng) {
+            return '<div style="min-width:200px;font-family:\'DM Sans\',sans-serif">' +
+                '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+                '<div style="width:10px;height:10px;border-radius:50%;background:' + TEAM_COLOR + ';' +
+                'box-shadow:0 0 0 3px ' + TEAM_COLOR + '33;flex-shrink:0"></div>' +
+                '<span style="font-size:14px;font-weight:700;color:' + TEAM_COLOR + '">Team Location</span>' +
+                '</div>' +
+                '<div style="font-size:12px;color:#8a92a8;margin-bottom:6px">' +
+                '<i class="fa-solid fa-location-dot" style="margin-right:4px"></i>' +
+                parseFloat(plat).toFixed(5) + ',  ' + parseFloat(plng).toFixed(5) +
+                '</div>' +
+                '<div style="font-size:11px;color:#475569">' +
+                '<i class="fa-solid fa-arrows-up-down-left-right" style="margin-right:4px"></i>' +
+                'Drag pin or click map to adjust' +
+                '</div>' +
+                '</div>';
         }
 
         var latEl = document.getElementById('teamLocationLat');
         var lngEl = document.getElementById('teamLocationLng');
-
-        // ── Place initial marker if team already has a position ────────
         var marker = null;
-        if (hasPos) {
-            marker = L.marker([lat, lng], { icon: makePinIcon(), draggable: true }).addTo(map);
-            marker.bindPopup(
-                '<div style="font-family:\'DM Sans\',sans-serif;font-size:12px;color:#94a3b8">' +
-                '<i class="fa-solid fa-location-dot" style="color:#3b82f6;margin-right:6px"></i>' +
-                'Drag or click map to update</div>',
-                { className: 'ders-loc-popup', maxWidth: 220 }
-            );
-            if (latEl) latEl.value = lat.toFixed(6);
-            if (lngEl) lngEl.value = lng.toFixed(6);
-            if (window._syncLocDisplay) window._syncLocDisplay();
-        }
 
-        // ── Helpers to update/place the marker ─────────────────────────
-        function placeMarker(clat, clng) {
-            if (latEl) latEl.value = clat.toFixed(6);
-            if (lngEl) lngEl.value = clng.toFixed(6);
+        function placePin(plat, plng) {
+            if (latEl) latEl.value = plat.toFixed(6);
+            if (lngEl) lngEl.value = plng.toFixed(6);
             if (window._syncLocDisplay) window._syncLocDisplay();
+
+            // Hide the hint overlay after first placement
+            var h = document.getElementById('teamLocationMapHint');
+            if (h) h.style.display = 'none';
+
             if (marker) {
-                marker.setLatLng([clat, clng]);
+                marker.setLatLng([plat, plng]);
+                marker.setPopupContent(makePopup(plat, plng));
             } else {
-                marker = L.marker([clat, clng], { icon: makePinIcon(), draggable: true }).addTo(map);
+                marker = L.marker([plat, plng], { icon: makePinIcon(), draggable: true })
+                    .addTo(map)
+                    .bindPopup(makePopup(plat, plng), { maxWidth: 280, className: 'ders-popup' });
+
                 marker.on('dragend', function () {
                     var pos = marker.getLatLng();
-                    placeMarker(pos.lat, pos.lng);
+                    placePin(pos.lat, pos.lng);
                 });
             }
         }
 
-        map.on('click', function (e) { placeMarker(e.latlng.lat, e.latlng.lng); });
-
-        if (marker) {
-            marker.on('dragend', function () {
-                var pos = marker.getLatLng();
-                placeMarker(pos.lat, pos.lng);
-            });
+        // ── Place initial marker if the team already has a position ────
+        if (hasPos) {
+            placePin(lat, lng);
         }
+
+        map.on('click', function (e) { placePin(e.latlng.lat, e.latlng.lng); });
 
         this._maps['teamLocationMap'] = map;
         setTimeout(function () { map.invalidateSize(); }, 400);
+        console.log('[mapInterop] teamLocationMap initialised ✅');
     },
 
     // ── Destroy any map by id ────────────────────────────────────────

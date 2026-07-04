@@ -60,7 +60,7 @@ namespace BlazorApp2.Services
 
             var token = tokenResponse?.AccessToken;
 
-            Console.WriteLine($"[AdminHub] Token loaded: {(string.IsNullOrEmpty(token) ? "❌ NULL" : "✅ OK")}");
+            Console.WriteLine($"Token loaded: {(string.IsNullOrEmpty(token) ? "❌ NULL" : "✅ OK")}");
 
 
             _hub = new HubConnectionBuilder()
