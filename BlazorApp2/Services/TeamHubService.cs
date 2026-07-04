@@ -82,11 +82,11 @@ namespace BlazorApp2.Services
 
             _hub.On<Guid, string, string, string, string>(
                     "TeamAssignedToDisaster",
-                    async (teamId, referenceId, title, city, message) =>
+                    async (teamId, refernceId, title, city, message) =>
                     {
                         Console.WriteLine($"[TeamHubService] TeamAssignedToDisaster — {title} in {city}");
                         if (OnTeamAssignedToDisaster is not null)
-                            await OnTeamAssignedToDisaster(new TeamAssignedEvent(teamId, referenceId, title, city, message));
+                            await OnTeamAssignedToDisaster(new TeamAssignedEvent(teamId, refernceId, title, city, message));
                     });
 
                 try

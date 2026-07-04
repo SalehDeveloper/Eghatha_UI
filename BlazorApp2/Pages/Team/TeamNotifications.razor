@@ -152,7 +152,7 @@
         var result = await Api.GetNotificationsAsync(page, 15);
         if (result.IsSuccess && result.Data is not null)
         {
-            _items = result.Data.Items;
+            _items = result.Data.Items.Where(n => n.IsRead==false).ToList();
             _page = result.Data.Page;
             _totalPages = result.Data.TotalPages;
 

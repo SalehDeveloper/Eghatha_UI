@@ -103,72 +103,6 @@
 
             <div class="team-topbar-right">
 
-                <!-- ── Notification bell + dropdown (leader only) ── -->
-                @if (_isLeader)
-                {
-                    <div class="team-notif-wrap" id="team-notif-wrap">
-                        <button class="team-btn-icon team-notif-bell-btn" @onclick="ToggleBell" title="Notifications">
-                            <i class="fa-solid fa-bell"></i>
-                            @if (NotifState.UnreadCount > 0)
-                            {
-                                <span class="team-notif-bell-badge">
-                                    @(NotifState.UnreadCount > 99 ? "99+" : NotifState.UnreadCount.ToString())
-                                </span>
-                            }
-                        </button>
-
-                        @if (NotifState.DropdownOpen)
-                        {
-                            <div class="team-notif-dropdown">
-                                <div class="team-notif-dropdown-header">
-                                    <span>Notifications</span>
-                                    <a href="/team/notifications" @onclick="NotifState.CloseDropdown"
-                                       @onclick:preventDefault="false">View all</a>
-                                </div>
-
-                                @if (_dropdownLoading)
-                                {
-                                    <div class="team-notif-dropdown-loading">
-                                        <span class="spinner spinner-sm"></span>
-                                    </div>
-                                }
-                                else if (!NotifState.Recent.Any())
-                                {
-                                    <div class="team-notif-dropdown-empty">No new notifications</div>
-                                }
-                                else
-                                {
-                                    @foreach (var n in NotifState.Recent)
-                                    {
-                                        var item = n;
-                                        <div class="team-notif-dropdown-item @(item.IsRead ? "" : "unread")"
-                                             @onclick="() => HandleDropdownClick(item)">
-                                            <div class="team-notif-dropdown-icon notif-type--@TypeClass(item.Type)">
-                                                <i class="fa-solid @TypeIcon(item.Type)"></i>
-                                            </div>
-                                            <div class="team-notif-dropdown-body">
-                                                <div class="team-notif-dropdown-title">@item.Title</div>
-                                                <div class="team-notif-dropdown-msg">@item.Message</div>
-                                                <div class="team-notif-dropdown-time">@TimeAgo(item.CreatedAt)</div>
-                                            </div>
-                                            @if (!item.IsRead)
-                                            {
-                                                <span class="team-notif-dot"></span>
-                                            }
-                                        </div>
-                                    }
-                                }
-
-                                <div class="team-notif-dropdown-footer">
-                                    <a href="/team/notifications" @onclick="NotifState.CloseDropdown">
-                                        See all notifications
-                                    </a>
-                                </div>
-                            </div>
-                        }
-                    </div>
-                }
-
                 <!-- Theme toggle -->
                 <button class="team-btn-icon" @onclick="ToggleTheme"
                         title="@(_isDark ? "Switch to light mode" : "Switch to dark mode")">
@@ -195,7 +129,6 @@
     private bool _isLeader;
     private bool _sidebarCollapsed;
     private bool _isDark = true;
-    private bool _dropdownLoading;
     private string _pageTitle = "Team Dashboard";
     private Responses.AccountResponse? _account;
 
@@ -247,58 +180,6 @@
         });
     }
 
-    // ── Bell dropdown ─────────────────────────────────────────────
-    private async Task ToggleBell()
-    {
-        NotifState.ToggleDropdown();
-
-        if (NotifState.DropdownOpen && !NotifState.Recent.Any())
-        {
-            _dropdownLoading = true;
-            StateHasChanged();
-
-            var result = await Api.GetNotificationsAsync(1, 5);
-            if (result.IsSuccess && result.Data is not null)
-            {
-                var items = result.Data.Items
-                    .Select(n => new NotificationDropdownItem
-                    {
-                        Id        = n.Id,
-                        Title     = n.Title,
-                        Message   = n.Message,
-                        Url       = n.Url,
-                        IsRead    = n.IsRead,
-                        CreatedAt = n.CreatedAt,
-                        Type      = n.Type
-                    }).ToList();
-
-                NotifState.SetRecent(items);
-            }
-
-            _dropdownLoading = false;
-            StateHasChanged();
-        }
-    }
-
-    private async Task HandleDropdownClick(NotificationDropdownItem n)
-    {
-        NotifState.CloseDropdown();
-
-        if (!n.IsRead)
-        {
-            var res = await Api.MarkNotificationReadAsync(n.Id);
-            if (res.IsSuccess)
-            {
-                n.IsRead = true;
-                NotifState.Decrement();
-                NotifState.SetRecent(NotifState.Recent);
-            }
-        }
-
-        if (!string.IsNullOrWhiteSpace(n.Url))
-            Nav.NavigateTo(n.Url);
-    }
-
     // ── UI helpers ────────────────────────────────────────────────
     private void ToggleSidebar() => _sidebarCollapsed = !_sidebarCollapsed;
 
@@ -334,29 +215,4 @@
         await TeamHub.DisposeAsync();
     }
 
-    // ── Helpers ───────────────────────────────────────────────────
-    private static string TypeClass(int type) => type switch
-    {
-        1 => "disaster",
-        2 => "volunteer",
-        3 => "team",
-        _ => "info"
-    };
-
-    private static string TypeIcon(int type) => type switch
-    {
-        1 => "fa-fire",
-        2 => "fa-hand-holding-heart",
-        3 => "fa-people-group",
-        _ => "fa-circle-info"
-    };
-
-    private static string TimeAgo(DateTime dt)
-    {
-        var diff = DateTime.UtcNow - dt.ToUniversalTime();
-        if (diff.TotalMinutes < 1)  return "just now";
-        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m ago";
-        if (diff.TotalHours   < 24) return $"{(int)diff.TotalHours}h ago";
-        return $"{(int)diff.TotalDays}d ago";
-    }
 }

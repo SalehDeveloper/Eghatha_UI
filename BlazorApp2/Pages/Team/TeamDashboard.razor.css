@@ -104,6 +104,34 @@
     }
 }
 
+.tdash-greeting {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.tdash-updated-at {
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.tdash-progress-track {
+    margin-top: 6px;
+    width: 100%;
+    height: 5px;
+    border-radius: var(--r-full);
+    background: var(--bg-surface-2);
+    overflow: hidden;
+}
+
+.tdash-progress-fill {
+    height: 100%;
+    border-radius: var(--r-full);
+    background: linear-gradient(90deg, var(--color-success), var(--accent-primary));
+    transition: width var(--t-normal);
+}
+
 .tdash-role-badge--leader {
     background: linear-gradient(135deg, var(--accent-glow), transparent);
     border-color: var(--accent-primary);

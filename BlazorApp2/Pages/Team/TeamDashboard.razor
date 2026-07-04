@@ -10,11 +10,20 @@
 <div class="tdash-page">
 
     <div class="tdash-header">
-        <h1 class="tdash-title">
-            <i class="fa-solid fa-house"></i>
-            Dashboard
-        </h1>
+        <div>
+            <h1 class="tdash-title">
+                <i class="fa-solid fa-house"></i>
+                Dashboard
+            </h1>
+            <p class="tdash-greeting">@_greeting</p>
+        </div>
         <div class="tdash-header-right">
+            @if (!_loading && _error is null)
+            {
+                <span class="tdash-updated-at" title="@_lastUpdated.ToString("g")">
+                    Updated @FormatRelativeTime(_lastUpdated)
+                </span>
+            }
             <span class="tdash-live-indicator">
                 <span class="tdash-pulse"></span>Live
             </span>
@@ -60,6 +69,9 @@
                 <div class="tdash-card-body">
                     <div class="tdash-card-label">Active Members</div>
                     <div class="tdash-card-value">@(_teamInfo?.ActiveMembersCount ?? 0) / @(_teamInfo?.MembersCount ?? 0)</div>
+                    <div class="tdash-progress-track">
+                        <div class="tdash-progress-fill" style="width:@(_membersPercent)%"></div>
+                    </div>
                 </div>
             </div>
 
@@ -75,14 +87,14 @@
 
             @if (_assignedDisaster is not null)
             {
-                <div class="tdash-card tdash-card--alert" @onclick='() => Nav.NavigateTo($"/team/disasters/{_assignedDisaster.DisasterId}")'>
+                <div class="tdash-card tdash-card--alert" @onclick='() => Nav.NavigateTo("/team/disaster")'>
                     <div class="tdash-card-icon tdash-card-icon--disaster">
                         <i class="fa-solid fa-fire"></i>
                     </div>
                     <div class="tdash-card-body">
                         <div class="tdash-card-label">Active Disaster</div>
-                        <div class="tdash-card-value tdash-card-value--sm">@_assignedDisaster.Title</div>
-                        <div class="tdash-card-sub">@_assignedDisaster.City, @_assignedDisaster.Province</div>
+                        <div class="tdash-card-value tdash-card-value--sm">@_assignedDisaster.Status</div>
+                        <div class="tdash-card-sub">Tap for details</div>
                     </div>
                     <i class="fa-solid fa-chevron-right tdash-card-arrow"></i>
                 </div>
@@ -91,11 +103,12 @@
             {
                 <div class="tdash-card">
                     <div class="tdash-card-icon tdash-card-icon--idle">
-                        <i class="fa-solid fa-circle-check"></i>
+                        <i class="fa-solid fa-check"></i>
                     </div>
                     <div class="tdash-card-body">
-                        <div class="tdash-card-label">Active Disaster</div>
-                        <div class="tdash-card-value" style="color:var(--color-success)">No active mission</div>
+                        <div class="tdash-card-label">Disaster Status</div>
+                        <div class="tdash-card-value tdash-card-value--sm">No active disaster</div>
+                        <div class="tdash-card-sub">Team on standby</div>
                     </div>
                 </div>
             }
@@ -193,6 +206,9 @@
     private bool _statusBusy;
     private string? _statusMessage;
     private bool _statusOk;
+    private string _greeting = GetGreeting();
+    private DateTime _lastUpdated = DateTime.Now;
+    private int _membersPercent;
 
     protected override async Task OnInitializedAsync()
     {
@@ -232,7 +248,38 @@
         if (resResult.IsSuccess)
             _resourceCount = resResult.Data?.TotalCount ?? 0;
 
+        RecalculateMembersPercent();
+        _lastUpdated = DateTime.Now;
         _loading = false;
+    }
+
+    private void RecalculateMembersPercent()
+    {
+        var total = _teamInfo?.MembersCount ?? 0;
+        var active = _teamInfo?.ActiveMembersCount ?? 0;
+        _membersPercent = total > 0 ? (int)Math.Round(active * 100.0 / total) : 0;
+    }
+
+    private static string GetGreeting()
+    {
+        var hour = DateTime.Now.Hour;
+        return hour switch
+        {
+            >= 5 and < 12 => "Good morning — here's how your team is doing.",
+            >= 12 and < 17 => "Good afternoon — here's how your team is doing.",
+            >= 17 and < 22 => "Good evening — here's how your team is doing.",
+            _ => "Here's how your team is doing."
+        };
+    }
+
+    private static string FormatRelativeTime(DateTime time)
+    {
+        var span = DateTime.Now - time;
+        if (span.TotalSeconds < 30) return "just now";
+        if (span.TotalMinutes < 1) return $"{(int)span.TotalSeconds}s ago";
+        if (span.TotalHours < 1) return $"{(int)span.TotalMinutes}m ago";
+        if (span.TotalDays < 1) return $"{(int)span.TotalHours}h ago";
+        return time.ToString("MMM d, HH:mm");
     }
 
     // ── Real-time: refresh the "active disaster" card the instant
@@ -253,6 +300,7 @@
                 _assignedDisaster = latest;
         }
 
+        _lastUpdated = DateTime.Now;
         await InvokeAsync(StateHasChanged);
     }
 
@@ -277,6 +325,8 @@
             var teamResult = await Api.GetTeamByIdAsync(_teamId);
             if (teamResult.IsSuccess && teamResult.Data is not null)
                 _teamInfo = teamResult.Data;
+            RecalculateMembersPercent();
+            _lastUpdated = DateTime.Now;
             _statusMessage = "Status updated.";
         }
         else
