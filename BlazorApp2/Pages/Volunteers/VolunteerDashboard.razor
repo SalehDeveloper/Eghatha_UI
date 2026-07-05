@@ -1,0 +1,396 @@
+﻿@page "/volunteer"
+@layout VolunteerLayout
+@using BlazorApp2.Services
+@using BlazorApp2.Responses
+@inject ServiceApi Api
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+
+<div class="vdash-page">
+
+    <!-- ── Header ─────────────────────────────────────────────── -->
+    <div class="vdash-header">
+        <div>
+            <h1 class="vdash-title">
+                <i class="fa-solid fa-house"></i>
+                Dashboard
+            </h1>
+            <p class="vdash-greeting">@_greeting</p>
+        </div>
+        <div class="vdash-header-right">
+            @if (!_loading && _error is null)
+            {
+                <span class="vdash-updated-at" title="@_lastUpdated.ToString("g")">
+                    Updated @FormatRelativeTime(_lastUpdated)
+                </span>
+            }
+            <span class="vdash-status-badge vdash-status-badge--@(_volunteer?.Status?.ToLower())">
+                <span class="vdash-status-dot"></span>
+                @(_volunteer?.Status ?? "—")
+            </span>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="vdash-loading">
+            <span class="spinner"></span>
+            <span>Loading dashboard…</span>
+        </div>
+    }
+    else if (_error is not null)
+    {
+        <div class="vdash-error">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            @_error
+        </div>
+    }
+    else
+    {
+        <!-- ── Stat cards ─────────────────────────────────────── -->
+        <div class="vdash-cards">
+            <div class="vdash-card">
+                <div class="vdash-card-icon vdash-card-icon--rank">
+                    <i class="fa-solid fa-ranking-star"></i>
+                </div>
+                <div class="vdash-card-body">
+                    <div class="vdash-card-label">Ranking</div>
+                    <div class="vdash-card-value">@(_myRank is not null ? $"#{_myRank}" : "Unranked")</div>
+                    <div class="vdash-card-sub">@(_myRank is not null ? "Among active volunteers" : "Not in current top list")</div>
+                </div>
+            </div>
+
+            <div class="vdash-card">
+                <div class="vdash-card-icon vdash-card-icon--score">
+                    <i class="fa-solid fa-star"></i>
+                </div>
+                <div class="vdash-card-body">
+                    <div class="vdash-card-label">Average Score</div>
+                    <div class="vdash-card-value">@(_volunteer?.AverageScore.ToString("F1") ?? "—")</div>
+                    <div class="vdash-card-sub">Out of 5.0</div>
+                </div>
+            </div>
+
+            <div class="vdash-card">
+                <div class="vdash-card-icon vdash-card-icon--missions">
+                    <i class="fa-solid fa-flag-checkered"></i>
+                </div>
+                <div class="vdash-card-body">
+                    <div class="vdash-card-label">Total Missions</div>
+                    <!-- NOTE: VolunteerResponse doesn't currently expose a mission
+                         count. Wire this up to a real field/endpoint once the
+                         backend exposes it — showing a dash instead of a fake number. -->
+                    <div class="vdash-card-value">@(_totalMissions?.ToString() ?? "—")</div>
+                    <div class="vdash-card-sub">@(_volunteer?.YearsOfExperience ?? 0) yrs experience</div>
+                </div>
+            </div>
+
+            <div class="vdash-card">
+                <div class="vdash-card-icon vdash-card-icon--speciality">
+                    <i class="fa-solid fa-hand-holding-medical"></i>
+                </div>
+                <div class="vdash-card-body">
+                    <div class="vdash-card-label">Speciality</div>
+                    <div class="vdash-card-value vdash-card-value--sm">@(_volunteer?.Speciality ?? "—")</div>
+                    <div class="vdash-card-sub">@(_volunteer?.City ?? "—"), @(_volunteer?.Province ?? "—")</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Status control ─────────────────────────────────── -->
+        <div class="vdash-panel">
+            <h2 class="vdash-section-title">Availability</h2>
+            <div class="vdash-status-controls">
+                <button class="vdash-status-btn vdash-status-btn--available @(_volunteer?.Status == "Available" ? "active" : "")"
+                        disabled="@(_statusBusy || _volunteer?.Status == "Available")"
+                        @onclick='() => SetStatusAsync("available")'>
+                    @if (_statusBusy && _pendingStatus == "available")
+                    {
+                        <span class="spinner spinner-sm"></span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-check"></i>
+                    }
+                    <span>Available</span>
+                </button>
+                <button class="vdash-status-btn vdash-status-btn--busy @(_volunteer?.Status == "Busy" ? "active" : "")"
+                        disabled="@(_statusBusy || _volunteer?.Status == "Busy")"
+                        @onclick='() => SetStatusAsync("busy")'>
+                    @if (_statusBusy && _pendingStatus == "busy")
+                    {
+                        <span class="spinner spinner-sm"></span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-person-running"></i>
+                    }
+                    <span>Busy</span>
+                </button>
+                <button class="vdash-status-btn vdash-status-btn--unavailable @(_volunteer?.Status == "Unavailable" ? "active" : "")"
+                        disabled="@(_statusBusy || _volunteer?.Status == "Unavailable")"
+                        @onclick='() => SetStatusAsync("unavailable")'>
+                    @if (_statusBusy && _pendingStatus == "unavailable")
+                    {
+                        <span class="spinner spinner-sm"></span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-ban"></i>
+                    }
+                    <span>Unavailable</span>
+                </button>
+
+                @if (_statusMessage is not null)
+                {
+                    <span class="vdash-status-message" style="color:@(_statusOk ? "var(--color-success)" : "var(--color-critical)")">
+                        @_statusMessage
+                    </span>
+                }
+            </div>
+        </div>
+
+        <!-- ── Performance overview (charts) ────────────────────── -->
+        <div class="vdash-panel">
+            <h2 class="vdash-section-title">Performance Overview</h2>
+            <div class="vdash-perf-grid">
+
+                <!-- Score gauge -->
+                <div class="vdash-perf-item">
+                    <svg viewBox="0 0 120 120" class="vdash-gauge">
+                        <circle cx="60" cy="60" r="50" class="vdash-gauge-track" />
+                        <circle cx="60" cy="60" r="50"
+                                class="vdash-gauge-progress vdash-gauge-progress--@ScoreColorClass"
+                                stroke-dasharray="@GaugeCircumference.ToString("F2")"
+                                stroke-dashoffset="@((GaugeCircumference * (1 - ScorePercent)).ToString("F2"))" />
+                        <text x="60" y="58" class="vdash-gauge-value">@((_volunteer?.AverageScore ?? 0).ToString("F1"))</text>
+                        <text x="60" y="76" class="vdash-gauge-max">out of 5.0</text>
+                    </svg>
+                    <span class="vdash-perf-label">Average Score</span>
+                </div>
+
+                <!-- Rank / percentile + experience -->
+                <div class="vdash-perf-item vdash-perf-item--wide">
+
+                    <div class="vdash-perf-rank-row">
+                        <span class="vdash-perf-rank-value">@(_myRank is not null ? $"#{_myRank}" : "—")</span>
+                        <span class="vdash-perf-rank-sub">
+                            @(_totalRanked > 0 ? $"out of {_totalRanked} ranked volunteers" : "Not enough ranking data yet")
+                        </span>
+                    </div>
+
+                    @if (_myRank is not null && _totalRanked > 0)
+                    {
+                        <div class="vdash-perf-bar-track">
+                            <div class="vdash-perf-bar-fill" style="width:@(Percentile)%"></div>
+                        </div>
+                        <span class="vdash-perf-percentile">
+                            <i class="fa-solid fa-arrow-trend-up"></i>
+                            Top @(Percentile)% by score
+                        </span>
+                    }
+
+                    <div class="vdash-perf-divider"></div>
+
+                    <div class="vdash-perf-exp-row">
+                        <span class="vdash-perf-exp-label"><i class="fa-solid fa-briefcase"></i> Experience</span>
+                        <div class="vdash-perf-bar-track vdash-perf-bar-track--sm">
+                            <div class="vdash-perf-bar-fill vdash-perf-bar-fill--exp" style="width:@(ExperienceBarWidth)%"></div>
+                        </div>
+                        <span class="vdash-perf-exp-value">@(_volunteer?.YearsOfExperience ?? 0) yrs</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Quick links to other sections ────────────────────── -->
+        <div class="vdash-quicklinks">
+            <a class="vdash-quicklink-card" href="/volunteer/disaster">
+                <div class="vdash-quicklink-icon vdash-quicklink-icon--disaster">
+                    <i class="fa-solid fa-fire"></i>
+                </div>
+                <div class="vdash-quicklink-body">
+                    <span class="vdash-quicklink-title">Active Disaster</span>
+                    <span class="vdash-quicklink-sub">
+                        @(_currentDisaster is not null ? $"Assigned: {_currentDisaster.Title}" : "No active assignment")
+                    </span>
+                </div>
+                <i class="fa-solid fa-chevron-right vdash-quicklink-arrow"></i>
+            </a>
+
+            <a class="vdash-quicklink-card" href="/volunteer/resources">
+                <div class="vdash-quicklink-icon vdash-quicklink-icon--resources">
+                    <i class="fa-solid fa-box-open"></i>
+                </div>
+                <div class="vdash-quicklink-body">
+                    <span class="vdash-quicklink-title">Resources</span>
+                    <span class="vdash-quicklink-sub">Manage your location &amp; equipment</span>
+                </div>
+                <i class="fa-solid fa-chevron-right vdash-quicklink-arrow"></i>
+            </a>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private string? _error;
+    private VolunteerResponse? _volunteer;
+    private Responses.AccountResponse? _account;
+    private Guid _volunteerId;
+    private Guid _userVolunteerId;
+    private string _greeting = GetGreeting();
+    private DateTime _lastUpdated = DateTime.Now;
+
+    private int? _myRank;
+    private int _totalRanked; // count of volunteers considered when ranking (page-size capped)
+    private int? _totalMissions; // no source field yet — stays null
+
+    private VolunteerDisasterResponse? _currentDisaster;
+
+    private bool _statusBusy;
+    private string? _pendingStatus;
+    private string? _statusMessage;
+    private bool _statusOk;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var acctResult = await Api.GetMyAccount();
+        if (!acctResult.IsSuccess || acctResult.Data is null)
+        {
+            _error = "Could not load your account information.";
+            _loading = false;
+            return;
+        }
+        _account = acctResult.Data;
+        _userVolunteerId = _account.Id;
+
+        var volunteerResult = await Api.GetVolunteerById(_userVolunteerId);
+        if (!volunteerResult.IsSuccess || volunteerResult.Data is null)
+        {
+            _error = "Could not load your volunteer profile.";
+            _loading = false;
+            return;
+        }
+
+        _volunteer = volunteerResult.Data;
+        _volunteerId = _volunteer.Id;
+
+        var disasterResult = await Api.GetCurrentVolunteerDisaster(_volunteerId);
+        if (disasterResult.IsSuccess)
+            _currentDisaster = disasterResult.Data;
+
+        _lastUpdated = DateTime.Now;
+        _loading = false;
+
+        // Fire-and-forget: doesn't need to block first paint
+        _ = LoadRankingAsync();
+    }
+
+    // ── Ranking ──────────────────────────────────────────────────
+    // Best-effort: scans the leaderboard (sorted by score) for this
+    // volunteer's Id. There's no dedicated "my rank" endpoint yet, so
+    // this searches the first page of a reasonably large page size.
+    // If the volunteer isn't found there, we just show "Unranked"
+    // rather than guessing.
+    private async Task LoadRankingAsync()
+    {
+        var result = await Api.GetTopVolunteersAsync(page: 1, pageSize: 100, sortBy: "AverageScore", descending: true);
+        if (result.IsSuccess && result.Data?.Items is not null)
+        {
+            var items = result.Data.Items.ToList();
+            _totalRanked = items.Count;
+            var idx = items.FindIndex(v => v.VolunteerId == _volunteerId);
+            if (idx >= 0)
+            {
+                _myRank = idx + 1;
+            }
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    // ── Performance chart helpers ────────────────────────────────
+    private const double GaugeRadius = 50;
+    private double GaugeCircumference => 2 * Math.PI * GaugeRadius;
+    private double ScorePercent => Math.Clamp((_volunteer?.AverageScore ?? 0) / 5.0, 0, 1);
+
+    private string ScoreColorClass => (_volunteer?.AverageScore ?? 0) switch
+    {
+        >= 4.0 => "success",
+        >= 2.5 => "warning",
+        _ => "critical",
+    };
+
+    private int Percentile
+    {
+        get
+        {
+            if (_myRank is null || _totalRanked <= 0) return 0;
+            var pct = 100 - ((double)(_myRank.Value - 1) / _totalRanked * 100);
+            return Math.Clamp((int)Math.Round(pct), 1, 100);
+        }
+    }
+
+    // Visual scale only (not a claim about a "max" — capped at 10 years so
+    // the bar stays readable; the real value is always shown as text too).
+    private double ExperienceBarWidth => Math.Clamp(((_volunteer?.YearsOfExperience ?? 0) / 10.0) * 100, 5, 100);
+
+    // ── Status ───────────────────────────────────────────────────
+    private async Task SetStatusAsync(string status)
+    {
+        _statusBusy = true;
+        _pendingStatus = status;
+        _statusMessage = null;
+        StateHasChanged();
+
+        var result = status switch
+        {
+            "available" => await Api.SetVolunteerStatusToAvailable(_volunteerId),
+            "busy" => await Api.SetVolunteerStatusToBusy(_volunteerId),
+            _ => await Api.SetVolunteerStatusToUnAvailable(_volunteerId),
+        };
+
+        _statusOk = result.IsSuccess;
+        if (result.IsSuccess && _volunteer is not null)
+        {
+            _volunteer.Status = status switch
+            {
+                "available" => "Available",
+                "busy" => "Busy",
+                _ => "Unavailable",
+            };
+            _statusMessage = "Status updated.";
+            _lastUpdated = DateTime.Now;
+        }
+        else
+        {
+            _statusMessage = result.ErrorDetail ?? "Failed to update status.";
+        }
+
+        _statusBusy = false;
+        _pendingStatus = null;
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────
+    private static string GetGreeting()
+    {
+        var hour = DateTime.Now.Hour;
+        return hour switch
+        {
+            >= 5 and < 12 => "Good morning — here's your activity at a glance.",
+            >= 12 and < 17 => "Good afternoon — here's your activity at a glance.",
+            >= 17 and < 22 => "Good evening — here's your activity at a glance.",
+            _ => "Here's your activity at a glance."
+        };
+    }
+
+    private static string FormatRelativeTime(DateTime time)
+    {
+        var span = DateTime.Now - time;
+        if (span.TotalSeconds < 30) return "just now";
+        if (span.TotalMinutes < 1) return $"{(int)span.TotalSeconds}s ago";
+        if (span.TotalHours < 1) return $"{(int)span.TotalMinutes}m ago";
+        if (span.TotalDays < 1) return $"{(int)span.TotalHours}h ago";
+        return time.ToString("MMM d, HH:mm");
+    }
+}

@@ -1,0 +1,342 @@
+﻿/* ═══════════════════════════════════════════════════════════════
+   VolunteerActiveDisaster.razor.css — scoped styles
+   Shared header/panel/loading/error/spinner classes duplicated
+   here since Blazor CSS isolation scopes rules per-component.
+   ═══════════════════════════════════════════════════════════════ */
+
+.vdash-page {
+    max-width: 1000px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-8);
+}
+
+/* ── Header ──────────────────────────────────────────────────── */
+.vdash-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--sp-4);
+    padding-bottom: var(--sp-5);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.vdash-title {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -.01em;
+    color: var(--text-primary);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+}
+
+    .vdash-title i {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border-radius: var(--r-md);
+        font-size: 17px;
+        color: var(--color-critical);
+        background: linear-gradient(155deg, var(--color-critical-bg), transparent);
+        border: 1px solid rgba(255, 77, 79, .25);
+    }
+
+.vdash-greeting {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.vdash-updated-at {
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+/* ── Loading / error ─────────────────────────────────────────── */
+.vdash-loading,
+.vdash-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-3);
+    padding: var(--sp-12);
+    color: var(--text-muted);
+    font-size: 14px;
+    background: var(--bg-surface);
+    border: 1px dashed var(--border-color-strong);
+    border-radius: var(--r-lg);
+}
+
+.vdash-error {
+    color: var(--color-critical);
+    border-color: rgba(255, 77, 79, .3);
+}
+
+/* ── Shared panel (reused for the "what to do" box) ──────────── */
+.vdash-panel {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--r-lg);
+    padding: var(--sp-5) var(--sp-6);
+    box-shadow: var(--shadow-sm);
+}
+
+.vdash-section-title {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin: 0 0 var(--sp-4);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+}
+
+    .vdash-section-title::before {
+        content: "";
+        width: 3px;
+        height: 13px;
+        border-radius: var(--r-full);
+        background: var(--accent-primary);
+    }
+
+/* ── Alert banner ─────────────────────────────────────────────── */
+.vad-alert-banner {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-5);
+    padding: var(--sp-6);
+    background: linear-gradient(155deg, var(--color-critical-bg), transparent);
+    border: 1px solid rgba(255, 77, 79, .3);
+    border-radius: var(--r-lg);
+}
+
+.vad-alert-icon {
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
+    border-radius: var(--r-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    color: var(--color-critical);
+    background: var(--bg-surface);
+    border: 1px solid rgba(255, 77, 79, .3);
+}
+
+.vad-alert-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.vad-alert-kicker {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+.vad-alert-title {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.vad-alert-status {
+    flex-shrink: 0;
+    padding: var(--sp-2) var(--sp-4);
+    border-radius: var(--r-full);
+    background: var(--color-critical);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+/* ── Meta grid ────────────────────────────────────────────────── */
+.vad-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--sp-4);
+}
+
+.vad-meta-card {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--r-lg);
+    padding: var(--sp-5);
+    box-shadow: var(--shadow-sm);
+}
+
+.vad-meta-icon {
+    flex-shrink: 0;
+    width: 42px;
+    height: 42px;
+    border-radius: var(--r-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: var(--accent-primary);
+    background: linear-gradient(155deg, var(--accent-glow), transparent);
+}
+
+.vad-meta-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.vad-meta-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-muted);
+}
+
+.vad-meta-value {
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vad-hint-text {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+
+    .vad-hint-text a {
+        color: var(--accent-primary);
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+        .vad-hint-text a:hover {
+            text-decoration: underline;
+        }
+
+/* ── Disaster location map ───────────────────────────────────── */
+.vad-map {
+    width: 100%;
+    height: 340px;
+    border-radius: var(--r-md);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    z-index: 1;
+}
+
+/* ── Idle state ───────────────────────────────────────────────── */
+.vad-idle-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--sp-3);
+    padding: var(--sp-12) var(--sp-6);
+    background: var(--bg-surface);
+    border: 1px dashed var(--border-color-strong);
+    border-radius: var(--r-lg);
+}
+
+.vad-idle-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: var(--color-success);
+    background: var(--color-success-bg);
+}
+
+.vad-idle-title {
+    font-family: var(--font-display);
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.vad-idle-text {
+    max-width: 440px;
+    font-size: 13.5px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin: 0;
+}
+
+.vad-idle-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-top: var(--sp-2);
+    padding: var(--sp-3) var(--sp-5);
+    border-radius: var(--r-md);
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-primary-hover));
+    color: #fff;
+    font-size: 13.5px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: opacity var(--t-fast);
+}
+
+    .vad-idle-cta:hover {
+        opacity: .9;
+    }
+
+/* ── Spinner (shared class) ──────────────────────────────────── */
+.spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2.5px solid var(--border-color-strong);
+    border-top-color: var(--accent-primary);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 600px) {
+    .vad-alert-banner {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .vdash-header {
+        align-items: flex-start;
+    }
+}

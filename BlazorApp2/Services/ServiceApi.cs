@@ -664,6 +664,8 @@ namespace BlazorApp2.Services
         // ═══════════════════════════════════════════════════════
         // VOLUNTEERS
         // ═══════════════════════════════════════════════════════
+
+
         public async Task<ApiResult<CreateVolunteerResponse>> CreateVolunteerAsync(
          string firstName,
          string lastName,
@@ -720,6 +722,7 @@ string cvContentType)
 
             return await HandleErrorResponseAsync<CreateVolunteerResponse>(response);
         }
+    
         public async Task<ApiResult<PagedResponse<VolunteerResponse>>> GetVolunteersAsync(
             string? search = null, string? status = null, string? speciality = null,
             string? province = null, int page = 1, int pageSize = 10)
@@ -737,6 +740,16 @@ string cvContentType)
             return await HandleErrorResponseAsync<PagedResponse<VolunteerResponse>>(response);
         }
 
+        public async Task<ApiResult<VolunteerResponse>> GetVolunteerById(Guid volunteerId)
+        {
+            var response = await _httpClient.GetAsync($"api/v1/volunteers/{volunteerId}");
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<VolunteerResponse>(JsonOptions);
+                return ApiResult<VolunteerResponse>.Success(data!);
+            }
+            return await HandleErrorResponseAsync<VolunteerResponse>(response);
+        }
         public async Task<ApiResult<PagedResponse<VolunteerRankingResponse>>> GetTopVolunteersAsync(
             int page = 1, int pageSize = 10, string? province = null, string? city = null,
             string? speciality = null, double? minAverageScore = null, string? sortBy = null, bool descending = true)
@@ -756,6 +769,7 @@ string cvContentType)
             return await HandleErrorResponseAsync<PagedResponse<VolunteerRankingResponse>>(response);
         }
 
+        // location
         public async Task<ApiResult<string>> UpdateVolunteerLocationAsync(Guid volunteerId, UpdateVolunteerLocationRequest model)
         {
             var response = await _httpClient.PutAsJsonAsync($"api/v1/volunteers/{volunteerId}/location", model);
@@ -764,6 +778,66 @@ string cvContentType)
             return await HandleErrorResponseAsync<string>(response);
         }
 
+
+        // status 
+        public async Task<ApiResult<string>> SetVolunteerStatusToBusy(Guid volunteerId )
+        {
+            var response = await _httpClient.PutAsync($"api/v1/volunteers/{volunteerId}/busy", null);
+            if (response.IsSuccessStatusCode)
+                return ApiResult<string>.Success("");
+            return await HandleErrorResponseAsync<string>(response);
+        }
+
+        public async Task<ApiResult<string>> SetVolunteerStatusToAvailable(Guid volunteerId)
+        {
+            var response = await _httpClient.PutAsync($"api/v1/volunteers/{volunteerId}/available", null);
+            if (response.IsSuccessStatusCode)
+                return ApiResult<string>.Success("");
+            return await HandleErrorResponseAsync<string>(response);
+        }
+
+        public async Task<ApiResult<string>> SetVolunteerStatusToUnAvailable(Guid volunteerId)
+        {
+            var response = await _httpClient.PutAsync($"api/v1/volunteers/{volunteerId}/unavailable", null);
+            if (response.IsSuccessStatusCode)
+                return ApiResult<string>.Success("");
+            return await HandleErrorResponseAsync<string>(response);
+        }
+
+
+        //equipments 
+
+        public async Task<ApiResult<string>> IncreaseVolunteerEquipmentQuantity(Guid volunteerId , Guid equipmentId , ChangeEquipmentQuantityRequest model)
+        {
+            var response = await _httpClient.PutAsJsonAsync($"api/v1/volunteers/{volunteerId}/equipments/{equipmentId}/increase", model);
+            if (response.IsSuccessStatusCode)
+                return ApiResult<string>.Success("");
+            return await HandleErrorResponseAsync<string>(response);
+        }
+
+        public async Task<ApiResult<string>> DecreaseVolunteerEquipmentQuantity(Guid volunteerId, Guid equipmentId, ChangeEquipmentQuantityRequest model)
+        {
+            var response = await _httpClient.PutAsJsonAsync($"api/v1/volunteers/{volunteerId}/equipments/{equipmentId}/decrease", model);
+            if (response.IsSuccessStatusCode)
+                return ApiResult<string>.Success("");
+            return await HandleErrorResponseAsync<string>(response);
+        }
+
+        public async Task<ApiResult<string>> CreateVolunteerEquipment(Guid volunteerId , CreateVolunteerEquipmentRequest model)
+        {
+            var response = await _httpClient.PostAsJsonAsync($"api/v1/volunteers/{volunteerId}/equipments", model);
+            if (response.IsSuccessStatusCode)
+                return ApiResult<string>.Success("");
+            return await HandleErrorResponseAsync<string>(response);
+        }
+
+        public async Task<ApiResult<string>> RemoveVolunteerEquipment(Guid volunteerId, Guid equipmentId)
+        {
+            var response = await _httpClient.DeleteAsync($"api/v1/volunteers/{volunteerId}/equipments/{equipmentId}");
+            if (response.IsSuccessStatusCode)
+                return ApiResult<string>.Success("");
+            return await HandleErrorResponseAsync<string>(response);
+        }
         public async Task<ApiResult<string>> SetEquipmentValidAsync(Guid volunteerId, Guid equipmentId)
         {
             var response = await _httpClient.PutAsync($"api/v1/volunteers/{volunteerId}/equipments/{equipmentId}/valid", null);
@@ -779,7 +853,21 @@ string cvContentType)
                 return ApiResult<string>.Success("");
             return await HandleErrorResponseAsync<string>(response);
         }
+        public async Task<ApiResult<PagedResponse<VolunteerEquipmentResponse>>> GetVolunteerEquipmentsAsync(Guid volunteerId, int page = 1, int pageSize = 10, string? type = null)
+        {
+            var url = BuildUrl($"api/v1/volunteers/{volunteerId}/equipments",
+                ("Page", page.ToString()), ("PageSize", pageSize.ToString()), ("Type", type));
 
+            var response = await _httpClient.GetAsync(url);
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<PagedResponse<VolunteerEquipmentResponse>>(JsonOptions);
+                return ApiResult<PagedResponse<VolunteerEquipmentResponse>>.Success(data!);
+            }
+            return await HandleErrorResponseAsync<PagedResponse<VolunteerEquipmentResponse>>(response);
+        }
+
+        //evaluation
         public async Task<ApiResult<string>> EvaluateVolunteerAsync(Guid disasterId, Guid volunteerid, EvaluateVolunteerRequest request)
         {
             var response = await _httpClient.PostAsJsonAsync($"api/v1/disasters/{disasterId}/volunteers/{volunteerid}/evaluate", request);
@@ -787,6 +875,25 @@ string cvContentType)
                 return ApiResult<string>.Success("");
             return await HandleErrorResponseAsync<string>(response);
         }
+
+        // disaster 
+        public async Task<ApiResult<VolunteerDisasterResponse>> GetCurrentVolunteerDisaster(Guid volunteerid)
+        {
+            var response = await _httpClient.GetAsync($"api/v1/volunteers/{volunteerid}/current-disaster");
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<VolunteerDisasterResponse>(JsonOptions);
+                return ApiResult<VolunteerDisasterResponse>.Success(data!);
+            }
+            else if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                // 404 means no current disaster assigned to the team
+                return ApiResult<VolunteerDisasterResponse>.Success(null!);
+            }
+            return await HandleErrorResponseAsync<VolunteerDisasterResponse>(response);
+        }
+
+
 
         // ═══════════════════════════════════════════════════════
         // NOTIFICATIONS

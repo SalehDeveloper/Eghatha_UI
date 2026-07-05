@@ -1,0 +1,563 @@
+﻿/* ═══════════════════════════════════════════════════════════════
+   VolunteerResources.razor.css — scoped styles for Location +
+   Equipment management. Shared header/panel/loading/error/spinner
+   classes duplicated here since Blazor CSS isolation scopes rules
+   per-component.
+   ═══════════════════════════════════════════════════════════════ */
+
+.vdash-page {
+    max-width: 1000px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-8);
+}
+
+/* ── Header ──────────────────────────────────────────────────── */
+.vdash-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--sp-4);
+    padding-bottom: var(--sp-5);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.vdash-title {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -.01em;
+    color: var(--text-primary);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+}
+
+    .vdash-title i {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border-radius: var(--r-md);
+        font-size: 17px;
+        color: var(--color-info);
+        background: linear-gradient(155deg, var(--color-info-bg), transparent);
+        border: 1px solid rgba(24, 144, 255, .25);
+    }
+
+.vdash-greeting {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+/* ── Loading / error ─────────────────────────────────────────── */
+.vdash-loading,
+.vdash-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-3);
+    padding: var(--sp-12);
+    color: var(--text-muted);
+    font-size: 14px;
+    background: var(--bg-surface);
+    border: 1px dashed var(--border-color-strong);
+    border-radius: var(--r-lg);
+}
+
+.vdash-error {
+    color: var(--color-critical);
+    border-color: rgba(255, 77, 79, .3);
+}
+
+/* ── Panels ──────────────────────────────────────────────────── */
+.vdash-panel {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--r-lg);
+    padding: var(--sp-5) var(--sp-6);
+    box-shadow: var(--shadow-sm);
+}
+
+.vdash-panel-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-4);
+}
+
+    .vdash-panel-header-row .vdash-section-title {
+        margin-bottom: 0;
+    }
+
+.vdash-section-title {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin: 0 0 var(--sp-4);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+}
+
+    .vdash-section-title::before {
+        content: "";
+        width: 3px;
+        height: 13px;
+        border-radius: var(--r-full);
+        background: var(--accent-primary);
+    }
+
+/* ── Location ────────────────────────────────────────────────── */
+.vdash-location-hint {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+/* ── Shared "link" button (used for actions inside panels) ─────── */
+.vdash-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-4);
+    border: 1px solid var(--border-color);
+    border-radius: var(--r-md);
+    background: var(--bg-surface-2);
+    color: var(--text-secondary);
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+
+    .vdash-link:hover {
+        background: var(--accent-glow);
+        color: var(--accent-primary);
+        border-color: var(--accent-primary);
+    }
+
+.vdash-link--primary {
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-primary-hover));
+    color: #fff;
+    border-color: transparent;
+}
+
+    .vdash-link--primary:hover {
+        color: #fff;
+        opacity: .92;
+    }
+
+/* ── Equipment section ───────────────────────────────────────── */
+.vdash-eq-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+}
+
+.vdash-select {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--r-md);
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface-2);
+    color: var(--text-primary);
+    font-size: 13px;
+}
+
+.vdash-select--full {
+    width: 100%;
+}
+
+.vdash-eq-loading,
+.vdash-eq-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-2);
+    padding: var(--sp-8);
+    color: var(--text-muted);
+    font-size: 13.5px;
+}
+
+.vdash-eq-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.vdash-eq-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
+    padding: var(--sp-3) var(--sp-4);
+    border: 1px solid var(--border-color);
+    border-radius: var(--r-md);
+    background: var(--bg-surface-2);
+    flex-wrap: wrap;
+}
+
+.vdash-eq-main {
+    flex: 1;
+    min-width: 140px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.vdash-eq-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.vdash-eq-category {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.vdash-eq-qty {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+}
+
+.vdash-qty-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--t-fast), color var(--t-fast);
+}
+
+    .vdash-qty-btn:hover:not(:disabled) {
+        background: var(--accent-glow);
+        color: var(--accent-primary);
+    }
+
+    .vdash-qty-btn:disabled {
+        opacity: .4;
+        cursor: not-allowed;
+    }
+
+.vdash-qty-value {
+    min-width: 22px;
+    text-align: center;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.vdash-eq-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: var(--r-full);
+    font-size: 12px;
+    font-weight: 700;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: opacity var(--t-fast);
+}
+
+    .vdash-eq-status-badge:disabled {
+        cursor: not-allowed;
+        opacity: .6;
+    }
+
+.vdash-eq-status-badge--valid {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+    border-color: rgba(82, 196, 26, .3);
+}
+
+.vdash-eq-status-badge--invalid {
+    background: var(--color-critical-bg);
+    color: var(--color-critical);
+    border-color: rgba(255, 77, 79, .3);
+}
+
+.vdash-eq-remove-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+
+    .vdash-eq-remove-btn:hover:not(:disabled) {
+        background: var(--color-critical-bg);
+        color: var(--color-critical);
+        border-color: var(--color-critical);
+    }
+
+    .vdash-eq-remove-btn:disabled {
+        opacity: .4;
+        cursor: not-allowed;
+    }
+
+.vdash-eq-message {
+    margin-top: var(--sp-3);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* ── Pagination ──────────────────────────────────────────────── */
+.vdash-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-4);
+    margin-top: var(--sp-5);
+}
+
+.vdash-page-btn {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    padding: 0 var(--sp-2);
+    border-radius: var(--r-md);
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface-2);
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+    transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+
+    .vdash-page-btn:hover:not(:disabled) {
+        background: var(--accent-glow);
+        color: var(--accent-primary);
+    }
+
+    .vdash-page-btn.active {
+        background: var(--accent-primary);
+        color: #fff;
+        border-color: var(--accent-primary);
+    }
+
+    .vdash-page-btn:disabled {
+        opacity: .4;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+
+.vdash-page-info {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-right: 4px;
+}
+
+/* ── Modals ──────────────────────────────────────────────────── */
+.vdash-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg-overlay);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: var(--sp-4);
+}
+
+.vdash-modal {
+    width: 100%;
+    max-width: 420px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color-strong);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+}
+
+.vdash-modal--wide {
+    max-width: 640px;
+}
+
+.vdash-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--sp-5) var(--sp-6);
+    border-bottom: 1px solid var(--border-color);
+}
+
+    .vdash-modal-header h3 {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: 16px;
+        color: var(--text-primary);
+    }
+
+.vdash-modal-close {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--r-sm);
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+    .vdash-modal-close:hover {
+        background: var(--bg-surface-2);
+        color: var(--text-primary);
+    }
+
+.vdash-modal-body {
+    padding: var(--sp-5) var(--sp-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.vdash-field-label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-top: var(--sp-2);
+}
+
+.vdash-input {
+    padding: var(--sp-3);
+    border-radius: var(--r-md);
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface-2);
+    color: var(--text-primary);
+    font-size: 14px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+    .vdash-input:focus {
+        outline: none;
+        border-color: var(--accent-primary);
+        box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+.vdash-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--sp-3);
+    padding: var(--sp-4) var(--sp-6);
+    border-top: 1px solid var(--border-color);
+}
+
+.vdash-btn-primary,
+.vdash-btn-secondary {
+    padding: var(--sp-2) var(--sp-5);
+    border-radius: var(--r-md);
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    transition: opacity var(--t-fast), transform var(--t-fast);
+}
+
+.vdash-btn-primary {
+    border: none;
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-primary-hover));
+    color: #fff;
+}
+
+    .vdash-btn-primary:disabled {
+        opacity: .6;
+        cursor: not-allowed;
+    }
+
+.vdash-btn-secondary {
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface-2);
+    color: var(--text-secondary);
+}
+
+    .vdash-btn-secondary:hover {
+        background: var(--bg-surface-3);
+    }
+
+/* ── Map ─────────────────────────────────────────────────────── */
+.vdash-map {
+    width: 100%;
+    height: 360px;
+    border-radius: var(--r-md);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+.vdash-coord-display {
+    margin-top: var(--sp-3);
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ── Spinner (shared class) ──────────────────────────────────── */
+.spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2.5px solid var(--border-color-strong);
+    border-top-color: var(--accent-primary);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
+
+.spinner-sm {
+    width: 14px;
+    height: 14px;
+    border-width: 2px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 600px) {
+    .vdash-eq-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .vdash-header {
+        align-items: flex-start;
+    }
+}

@@ -1,0 +1,632 @@
+﻿/* ═══════════════════════════════════════════════════════════════
+   VolunteerDashboard.razor.css — scoped general-dashboard styles
+   Mirrors the visual language of TeamLayout.razor.css (same design
+   tokens from variables.css). Shared panel/card/header/spinner
+   classes are duplicated here (and in the sibling Volunteer*.razor.css
+   files) because Blazor CSS isolation scopes rules per-component.
+   ═══════════════════════════════════════════════════════════════ */
+
+.vdash-page {
+    max-width: 1000px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-8);
+}
+
+/* ── Header ──────────────────────────────────────────────────── */
+.vdash-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--sp-4);
+    padding-bottom: var(--sp-5);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.vdash-title {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -.01em;
+    color: var(--text-primary);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+}
+
+    .vdash-title i {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border-radius: var(--r-md);
+        font-size: 17px;
+        color: var(--accent-primary);
+        background: linear-gradient(155deg, var(--accent-glow), transparent);
+        border: 1px solid color-mix(in srgb, var(--accent-primary) 25%, transparent);
+    }
+
+.vdash-greeting {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.vdash-header-right {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+}
+
+.vdash-updated-at {
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.vdash-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-1) var(--sp-4);
+    border-radius: var(--r-full);
+    background: var(--bg-surface-2);
+    border: 1px solid var(--border-color);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.vdash-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+}
+
+.vdash-status-badge--available {
+    background: var(--color-success-bg);
+    border-color: rgba(82, 196, 26, .3);
+    color: var(--color-success);
+}
+
+    .vdash-status-badge--available .vdash-status-dot {
+        background: var(--color-success);
+        animation: vdash-pulse-dot 1.5s ease infinite;
+    }
+
+.vdash-status-badge--busy {
+    background: var(--color-warning-bg);
+    border-color: rgba(250, 173, 20, .3);
+    color: var(--color-warning);
+}
+
+    .vdash-status-badge--busy .vdash-status-dot {
+        background: var(--color-warning);
+    }
+
+.vdash-status-badge--unavailable {
+    background: var(--color-critical-bg);
+    border-color: rgba(255, 77, 79, .3);
+    color: var(--color-critical);
+}
+
+    .vdash-status-badge--unavailable .vdash-status-dot {
+        background: var(--color-critical);
+    }
+
+@keyframes vdash-pulse-dot {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(82, 196, 26, .5);
+    }
+
+    50% {
+        transform: scale(1.2);
+        box-shadow: 0 0 0 6px rgba(82, 196, 26, 0);
+    }
+}
+
+/* ── Loading / error ─────────────────────────────────────────── */
+.vdash-loading,
+.vdash-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-3);
+    padding: var(--sp-12);
+    color: var(--text-muted);
+    font-size: 14px;
+    background: var(--bg-surface);
+    border: 1px dashed var(--border-color-strong);
+    border-radius: var(--r-lg);
+}
+
+.vdash-error {
+    color: var(--color-critical);
+    border-color: rgba(255, 77, 79, .3);
+}
+
+/* ── Cards ───────────────────────────────────────────────────── */
+.vdash-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: var(--sp-4);
+}
+
+.vdash-card {
+    position: relative;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--r-lg);
+    padding: var(--sp-5);
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sp-4);
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow var(--t-normal), transform var(--t-normal);
+    overflow: hidden;
+}
+
+    .vdash-card::before {
+        content: "";
+        position: absolute;
+        inset: 0 0 auto 0;
+        height: 2px;
+        background: linear-gradient(90deg, var(--accent-primary), transparent 70%);
+        opacity: 0;
+        transition: opacity var(--t-normal);
+    }
+
+    .vdash-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+    }
+
+        .vdash-card:hover::before {
+            opacity: 1;
+        }
+
+.vdash-card-icon {
+    flex-shrink: 0;
+    width: 46px;
+    height: 46px;
+    border-radius: var(--r-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .04);
+}
+
+.vdash-card-icon--rank {
+    background: linear-gradient(155deg, var(--color-warning-bg), transparent);
+    color: var(--color-warning);
+}
+
+.vdash-card-icon--score {
+    background: linear-gradient(155deg, var(--accent-glow), transparent);
+    color: var(--accent-primary);
+}
+
+.vdash-card-icon--missions {
+    background: linear-gradient(155deg, var(--color-success-bg), transparent);
+    color: var(--color-success);
+}
+
+.vdash-card-icon--speciality {
+    background: linear-gradient(155deg, var(--color-info-bg), transparent);
+    color: var(--color-info);
+}
+
+.vdash-card-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.vdash-card-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--text-muted);
+}
+
+.vdash-card-value {
+    font-family: var(--font-display);
+    font-size: 21px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.25;
+}
+
+.vdash-card-value--sm {
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vdash-card-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+/* ── Panels (shared section container) ──────────────────────── */
+.vdash-panel {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--r-lg);
+    padding: var(--sp-5) var(--sp-6);
+    box-shadow: var(--shadow-sm);
+}
+
+.vdash-section-title {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin: 0 0 var(--sp-4);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+}
+
+    .vdash-section-title::before {
+        content: "";
+        width: 3px;
+        height: 13px;
+        border-radius: var(--r-full);
+        background: var(--accent-primary);
+    }
+
+/* ── Status controls ─────────────────────────────────────────── */
+.vdash-status-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-3);
+}
+
+.vdash-status-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-5);
+    border: 1px solid var(--border-color);
+    border-radius: var(--r-md);
+    background: var(--bg-surface-2);
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast), transform var(--t-fast);
+}
+
+    .vdash-status-btn:hover:not(:disabled) {
+        transform: translateY(-1px);
+    }
+
+    .vdash-status-btn:disabled {
+        cursor: not-allowed;
+        opacity: .6;
+    }
+
+.vdash-status-btn--available.active {
+    background: var(--color-success-bg);
+    border-color: var(--color-success);
+    color: var(--color-success);
+    opacity: 1;
+}
+
+.vdash-status-btn--busy.active {
+    background: var(--color-warning-bg);
+    border-color: var(--color-warning);
+    color: var(--color-warning);
+    opacity: 1;
+}
+
+.vdash-status-btn--unavailable.active {
+    background: var(--color-critical-bg);
+    border-color: var(--color-critical);
+    color: var(--color-critical);
+    opacity: 1;
+}
+
+.vdash-status-message {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* ── Performance overview / charts ─────────────────────────────── */
+.vdash-perf-grid {
+    display: grid;
+    grid-template-columns: minmax(140px, 200px) 1fr;
+    gap: var(--sp-8);
+    align-items: center;
+}
+
+.vdash-perf-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-3);
+}
+
+.vdash-perf-item--wide {
+    align-items: stretch;
+    gap: var(--sp-3);
+}
+
+.vdash-perf-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+/* Gauge (SVG donut) */
+.vdash-gauge {
+    width: 140px;
+    height: 140px;
+    transform: rotate(-90deg);
+}
+
+.vdash-gauge-track {
+    fill: none;
+    stroke: var(--bg-surface-3);
+    stroke-width: 10;
+}
+
+.vdash-gauge-progress {
+    fill: none;
+    stroke-width: 10;
+    stroke-linecap: round;
+    transition: stroke-dashoffset var(--t-slow);
+}
+
+.vdash-gauge-progress--success {
+    stroke: var(--color-success);
+}
+
+.vdash-gauge-progress--warning {
+    stroke: var(--color-warning);
+}
+
+.vdash-gauge-progress--critical {
+    stroke: var(--color-critical);
+}
+
+.vdash-gauge-value,
+.vdash-gauge-max {
+    transform: rotate(90deg);
+    transform-origin: 60px 60px;
+    text-anchor: middle;
+    font-family: var(--font-display);
+    fill: var(--text-primary);
+}
+
+.vdash-gauge-value {
+    font-size: 22px;
+    font-weight: 800;
+}
+
+.vdash-gauge-max {
+    font-size: 9px;
+    fill: var(--text-muted);
+    font-family: var(--font-body);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+/* Rank / percentile block */
+.vdash-perf-rank-row {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+}
+
+.vdash-perf-rank-value {
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.vdash-perf-rank-sub {
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+.vdash-perf-bar-track {
+    width: 100%;
+    height: 10px;
+    border-radius: var(--r-full);
+    background: var(--bg-surface-3);
+    overflow: hidden;
+}
+
+.vdash-perf-bar-track--sm {
+    height: 8px;
+    flex: 1;
+}
+
+.vdash-perf-bar-fill {
+    height: 100%;
+    border-radius: var(--r-full);
+    background: linear-gradient(90deg, var(--accent-primary), var(--accent-primary-hover));
+    transition: width var(--t-slow);
+}
+
+.vdash-perf-bar-fill--exp {
+    background: linear-gradient(90deg, var(--color-success), #3ba62e);
+}
+
+.vdash-perf-percentile {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--accent-primary);
+}
+
+.vdash-perf-divider {
+    height: 1px;
+    background: var(--border-color);
+    margin: var(--sp-1) 0;
+}
+
+.vdash-perf-exp-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+}
+
+.vdash-perf-exp-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.vdash-perf-exp-value {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+/* ── Quick links ─────────────────────────────────────────────── */
+.vdash-quicklinks {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: var(--sp-4);
+}
+
+.vdash-quicklink-card {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
+    padding: var(--sp-5);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-sm);
+    text-decoration: none;
+    color: inherit;
+    transition: box-shadow var(--t-normal), transform var(--t-normal), border-color var(--t-normal);
+}
+
+    .vdash-quicklink-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+        border-color: var(--border-color-strong);
+    }
+
+.vdash-quicklink-icon {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--r-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+}
+
+.vdash-quicklink-icon--disaster {
+    background: linear-gradient(155deg, var(--color-critical-bg), transparent);
+    color: var(--color-critical);
+}
+
+.vdash-quicklink-icon--resources {
+    background: linear-gradient(155deg, var(--color-info-bg), transparent);
+    color: var(--color-info);
+}
+
+.vdash-quicklink-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.vdash-quicklink-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.vdash-quicklink-sub {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vdash-quicklink-arrow {
+    color: var(--text-muted);
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+/* ── Spinner (shared class) ──────────────────────────────────── */
+.spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2.5px solid var(--border-color-strong);
+    border-top-color: var(--accent-primary);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
+
+.spinner-sm {
+    width: 14px;
+    height: 14px;
+    border-width: 2px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 600px) {
+    .vdash-cards {
+        grid-template-columns: 1fr;
+    }
+
+    .vdash-header {
+        align-items: flex-start;
+    }
+
+    .vdash-perf-grid {
+        grid-template-columns: 1fr;
+        justify-items: center;
+    }
+
+    .vdash-quicklinks {
+        grid-template-columns: 1fr;
+    }
+}

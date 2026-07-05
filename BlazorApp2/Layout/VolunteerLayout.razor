@@ -1,0 +1,171 @@
+﻿@* Layouts/VolunteerLayout.razor
+   Shared layout for volunteer-facing pages. Mirrors TeamLayout.razor's
+   structure (same CSS classes/tokens, copied into VolunteerLayout.razor.css)
+   so the volunteer portal looks consistent with the team portal.
+   Drop this file at: Layouts/VolunteerLayout.razor
+*@
+
+@inherits LayoutComponentBase
+@using BlazorApp2.Services
+@inject ServiceApi Api
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@implements IDisposable
+
+<div class="team-layout" data-theme="@(_isDark ? "dark" : "light")">
+
+    <!-- ── Sidebar ── -->
+    <aside class="team-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
+
+        <div class="team-sidebar-header">
+            <div class="team-sidebar-brand">
+                <div class="team-brand-icon"><i class="fa-solid fa-shield-halved"></i></div>
+                <div class="team-brand-text">
+                    <span class="team-brand-title">EGHATHA</span>
+                    <span class="team-brand-sub">Volunteer Portal</span>
+                </div>
+            </div>
+            <button class="team-sidebar-toggle-btn" @onclick="ToggleSidebar" title="Toggle sidebar">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+        </div>
+
+        <nav class="team-nav">
+            <a href="/volunteer" class="team-nav-item @(IsActive("/volunteer", exact: true))">
+                <i class="fa-solid fa-house"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="/volunteer/disaster" class="team-nav-item @(IsActive("/volunteer/disaster"))">
+                <i class="fa-solid fa-fire"></i>
+                <span>Active Disaster</span>
+            </a>
+            <a href="/volunteer/resources" class="team-nav-item @(IsActive("/volunteer/resources"))">
+                <i class="fa-solid fa-box-open"></i>
+                <span>Resources</span>
+            </a>
+            @* Add further volunteer-facing pages here as they're built,
+               e.g. mission history, notifications, profile settings — same
+               team-nav-item pattern as TeamLayout. *@
+        </nav>
+
+        <!-- Sidebar footer — user card + logout -->
+        <div class="team-sidebar-footer">
+            <div class="team-user-card">
+                <div class="team-user-avatar">
+                    @if (!string.IsNullOrEmpty(_account?.PhotoUrl))
+                    {
+                        <img src="@_account.PhotoUrl" alt="Profile" />
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-user"></i>
+                    }
+                </div>
+                <div class="team-user-info">
+                    <span class="team-user-name">@(_account?.FullName ?? "Volunteer")</span>
+                    <span class="team-user-role">
+                        <i class="fa-solid fa-hand-holding-medical" style="font-size:10px"></i>
+                        Volunteer
+                    </span>
+                </div>
+                <button class="team-btn-icon" @onclick="Logout" title="Logout">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ── Main content ── -->
+    <div class="team-main @(_sidebarCollapsed ? "sidebar-collapsed" : "")">
+
+        <!-- Topbar -->
+        <header class="team-topbar">
+            <div class="team-topbar-left">
+                <button class="team-mobile-menu-btn team-btn-icon" @onclick="ToggleSidebar">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <span class="team-topbar-title">@_pageTitle</span>
+            </div>
+
+            <div class="team-topbar-right">
+                <button class="team-btn-icon" @onclick="ToggleTheme"
+                        title="@(_isDark ? "Switch to light mode" : "Switch to dark mode")">
+                    <i class="fa-solid @(_isDark ? "fa-sun" : "fa-moon")"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Page content slot -->
+        <main class="team-content">
+            @Body
+        </main>
+    </div>
+
+</div>
+
+@code {
+    private bool _sidebarCollapsed;
+    private bool _isDark = true;
+    private string _pageTitle = "Dashboard";
+    private Responses.AccountResponse? _account;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Nav.LocationChanged += HandleLocationChanged;
+
+        var acctResult = await Api.GetMyAccount();
+        if (acctResult.IsSuccess && acctResult.Data is not null)
+            _account = acctResult.Data;
+    }
+
+    // The layout instance persists across navigation between pages that
+    // share this @layout, so the title/active-link need to be refreshed
+    // explicitly on every navigation rather than only on first render.
+    private void HandleLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        _pageTitle = GetPageTitle();
+        InvokeAsync(StateHasChanged);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var saved = await JS.InvokeAsync<string>("DersTheme.getSaved");
+            _isDark = saved != "light";
+            _pageTitle = GetPageTitle();
+            StateHasChanged();
+        }
+    }
+
+    private void ToggleSidebar() => _sidebarCollapsed = !_sidebarCollapsed;
+
+    private async Task ToggleTheme()
+    {
+        _isDark = !_isDark;
+        await JS.InvokeVoidAsync("DersTheme.apply", _isDark ? "dark" : "light");
+    }
+
+    private void Logout() => Nav.NavigateTo("/login");
+
+    private string IsActive(string path, bool exact = false)
+    {
+        var current = Nav.Uri.Replace(Nav.BaseUri.TrimEnd('/'), "");
+        if (exact) return current == path ? "active" : "";
+        return current.StartsWith(path) ? "active" : "";
+    }
+
+    private string GetPageTitle()
+    {
+        var uri = Nav.Uri;
+        if (uri.Contains("/volunteer/disaster")) return "Active Disaster";
+        if (uri.Contains("/volunteer/resources")) return "Resources";
+        // Extend this switch as more volunteer pages are added.
+        return "Dashboard";
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= HandleLocationChanged;
+    }
+}

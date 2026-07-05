@@ -1,0 +1,563 @@
+﻿@page "/volunteer/resources"
+@layout VolunteerLayout
+@using BlazorApp2.Services
+@using BlazorApp2.Responses
+@inject ServiceApi Api
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="vdash-page">
+
+    <!-- ── Header ─────────────────────────────────────────────── -->
+    <div class="vdash-header">
+        <div>
+            <h1 class="vdash-title">
+                <i class="fa-solid fa-box-open"></i>
+                Resources
+            </h1>
+            <p class="vdash-greeting">Manage your location and equipment.</p>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="vdash-loading">
+            <span class="spinner"></span>
+            <span>Loading resources…</span>
+        </div>
+    }
+    else if (_error is not null)
+    {
+        <div class="vdash-error">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            @_error
+        </div>
+    }
+    else
+    {
+        <!-- ── Location ───────────────────────────────────────── -->
+        <div class="vdash-panel">
+            <div class="vdash-panel-header-row">
+                <h2 class="vdash-section-title">My Location</h2>
+                <button class="vdash-link" @onclick="OpenLocationModal">
+                    <i class="fa-solid fa-location-crosshairs"></i>
+                    <span>Update Location</span>
+                </button>
+            </div>
+            <p class="vdash-location-hint">
+                Keeping your location up to date helps the coordination team match you to nearby disasters faster.
+            </p>
+        </div>
+
+        <!-- ── Equipments ─────────────────────────────────────── -->
+        <div class="vdash-panel">
+            <div class="vdash-panel-header-row">
+                <h2 class="vdash-section-title">My Equipment</h2>
+                <div class="vdash-eq-toolbar">
+                    <select class="vdash-select" value="@_eqTypeFilter" @onchange="OnEquipmentFilterChanged">
+                        <option value="">All categories</option>
+                        @foreach (var cat in _equipmentCategories)
+                        {
+                            <option value="@cat.Name">@cat.Name</option>
+                        }
+                    </select>
+                    <button class="vdash-link vdash-link--primary" @onclick="OpenAddEquipmentModal">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>Add Equipment</span>
+                    </button>
+                </div>
+            </div>
+
+            @if (_eqLoading)
+            {
+                <div class="vdash-eq-loading">
+                    <span class="spinner spinner-sm"></span>
+                    <span>Loading equipment…</span>
+                </div>
+            }
+            else if (_equipmentItems.Count == 0)
+            {
+                <div class="vdash-eq-empty">
+                    <i class="fa-solid fa-box-open"></i>
+                    <span>No equipment yet. Add your first item.</span>
+                </div>
+            }
+            else
+            {
+                <div class="vdash-eq-list">
+                    @foreach (var eq in _equipmentItems)
+                    {
+                        var isBusy = _eqRowBusy.Contains(eq.Id);
+                        <div class="vdash-eq-row">
+                            <div class="vdash-eq-main">
+                                <span class="vdash-eq-name">@eq.Name</span>
+                                <span class="vdash-eq-category">@eq.Category</span>
+                            </div>
+
+                            <div class="vdash-eq-qty">
+                                <button class="vdash-qty-btn" disabled="@(isBusy || eq.Quantity <= 0)"
+                                        @onclick="() => ChangeQuantityAsync(eq, decrease: true)">
+                                    <i class="fa-solid fa-minus"></i>
+                                </button>
+                                <span class="vdash-qty-value">@eq.Quantity</span>
+                                <button class="vdash-qty-btn" disabled="@isBusy"
+                                        @onclick="() => ChangeQuantityAsync(eq, decrease: false)">
+                                    <i class="fa-solid fa-plus"></i>
+                                </button>
+                            </div>
+
+                            <button class="vdash-eq-status-badge vdash-eq-status-badge--@(eq.Status.ToLower())"
+                                    disabled="@isBusy"
+                                    title="Click to toggle valid / invalid"
+                                    @onclick="() => ToggleEquipmentStatusAsync(eq)">
+                                @if (isBusy)
+                                {
+                                    <span class="spinner spinner-sm"></span>
+                                }
+                                else
+                                {
+                                    <i class="fa-solid @(eq.Status == "Valid" ? "fa-badge-check" : "fa-triangle-exclamation")"></i>
+                                }
+                                @eq.Status
+                            </button>
+
+                            <button class="vdash-eq-remove-btn" disabled="@isBusy" title="Remove equipment"
+                                    @onclick="() => RemoveEquipmentAsync(eq)">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    }
+                </div>
+
+                @if (_eqTotalPages > 1)
+                {
+                    <div class="vdash-pagination">
+                        <span class="vdash-page-info">@EqPagFrom–@EqPagTo of @_eqTotalCount</span>
+                        <button class="vdash-page-btn" disabled="@(_eqPage == 1)"
+                                @onclick="() => ChangeEquipmentPageAsync(_eqPage - 1)">
+                            ‹
+                        </button>
+                        @foreach (var p in EqPageNumbers)
+                        {
+                            @if (p == -1)
+                            {
+                                <span class="vdash-page-btn" style="pointer-events:none">…</span>
+                            }
+                            else
+                            {
+                                <button class="vdash-page-btn @(p == _eqPage ? "active" : "")"
+                                        @onclick="() => ChangeEquipmentPageAsync(p)">
+                                    @p
+                                </button>
+                            }
+                        }
+                        <button class="vdash-page-btn" disabled="@(_eqPage == _eqTotalPages)"
+                                @onclick="() => ChangeEquipmentPageAsync(_eqPage + 1)">
+                            ›
+                        </button>
+                    </div>
+                }
+            }
+
+            @if (_eqMessage is not null)
+            {
+                <div class="vdash-eq-message" style="color:@(_eqMessageOk ? "var(--color-success)" : "var(--color-critical)")">
+                    @_eqMessage
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<!-- ── Add Equipment modal ─────────────────────────────────────── -->
+@if (_showAddEquipmentModal)
+{
+    <div class="vdash-modal-overlay" @onclick="CloseAddEquipmentModal">
+        <div class="vdash-modal" @onclick:stopPropagation="true">
+            <div class="vdash-modal-header">
+                <h3>Add Equipment</h3>
+                <button class="vdash-modal-close" @onclick="CloseAddEquipmentModal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="vdash-modal-body">
+                <label class="vdash-field-label">Name</label>
+                <input class="vdash-input" @bind="_newEqName" placeholder="e.g. First Aid Kit" />
+
+                <label class="vdash-field-label">Category</label>
+                <select class="vdash-select vdash-select--full" @bind="_newEqCategory">
+                    <option value="">Select category…</option>
+                    @foreach (var cat in _equipmentCategories)
+                    {
+                        <option value="@cat.Name">@cat.Name</option>
+                    }
+                </select>
+
+                <label class="vdash-field-label">Quantity</label>
+                <input class="vdash-input" type="number" min="0" @bind="_newEqQuantity" />
+
+                @if (_addEqMessage is not null)
+                {
+                    <div class="vdash-eq-message" style="color:var(--color-critical)">@_addEqMessage</div>
+                }
+            </div>
+            <div class="vdash-modal-footer">
+                <button class="vdash-btn-secondary" @onclick="CloseAddEquipmentModal">Cancel</button>
+                <button class="vdash-btn-primary" disabled="@_addEqBusy" @onclick="SubmitNewEquipmentAsync">
+                    @if (_addEqBusy)
+                    {
+                        <span class="spinner spinner-sm"></span>
+                    }
+                    else
+                    {
+                        <span>Add</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ── Update Location modal ───────────────────────────────────── -->
+@if (_showLocationModal)
+{
+    <div class="vdash-modal-overlay" @onclick="CloseLocationModal">
+        <div class="vdash-modal vdash-modal--wide" @onclick:stopPropagation="true">
+            <div class="vdash-modal-header">
+                <h3>Update My Location</h3>
+                <button class="vdash-modal-close" @onclick="CloseLocationModal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="vdash-modal-body">
+                <p class="vdash-location-hint">Click the map or drag the pin to set your current location.</p>
+                <div id="volunteerLocationMap" class="vdash-map"></div>
+                <div class="vdash-coord-display">
+                    <i class="fa-solid fa-location-dot"></i>
+                    @_pendingLat.ToString("F5"), @_pendingLng.ToString("F5")
+                </div>
+                @if (_locationMessage is not null)
+                {
+                    <div class="vdash-eq-message" style="color:@(_locationOk ? "var(--color-success)" : "var(--color-critical)")">
+                        @_locationMessage
+                    </div>
+                }
+            </div>
+            <div class="vdash-modal-footer">
+                <button class="vdash-btn-secondary" @onclick="CloseLocationModal">Cancel</button>
+                <button class="vdash-btn-primary" disabled="@_locationBusy" @onclick="ConfirmLocationAsync">
+                    @if (_locationBusy)
+                    {
+                        <span class="spinner spinner-sm"></span>
+                    }
+                    else
+                    {
+                        <span>Save Location</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    // ── Notes ──────────────────────────────────────────────────────
+    // - AccountResponse.Id (Guid) is used as the volunteer's Id — confirmed
+    //   against the real DTO (Id, Email, Roles, PhoneNumber, FirstName,
+    //   LastName, PhotoUrl, IsActive, FullName).
+    // - ReferenceItem is { int Value, string Name } — confirmed. Category
+    //   dropdowns bind to `Name` (not `Value`) because the equipment
+    //   endpoints' Category/type parameters are strings, not the enum's
+    //   underlying int.
+
+    private bool _loading = true;
+    private string? _error;
+    private Guid _volunteerId;
+
+    // Equipment list state
+    private List<VolunteerEquipmentResponse> _equipmentItems = new();
+    private bool _eqLoading = true;
+    private int _eqPage = 1;
+    private const int EqPageSize = 6;
+    private int _eqTotalPages = 1;
+    private int _eqTotalCount = 0;
+    private string _eqTypeFilter = "";
+    private List<ReferenceItem> _equipmentCategories = new();
+    private HashSet<Guid> _eqRowBusy = new();
+
+    // Pagination display helpers (mirrors Teams.razor pattern)
+    private int EqPagFrom => _eqTotalCount == 0 ? 0 : (_eqPage - 1) * EqPageSize + 1;
+    private int EqPagTo => Math.Min(_eqPage * EqPageSize, _eqTotalCount);
+
+    private IEnumerable<int> EqPageNumbers
+    {
+        get
+        {
+            int start = Math.Max(1, _eqPage - 2);
+            int end = Math.Min(_eqTotalPages, start + 4);
+            var list = Enumerable.Range(start, end - start + 1).ToList();
+            if (end < _eqTotalPages) { list.Add(-1); list.Add(_eqTotalPages); }
+            return list;
+        }
+    }
+
+    private string? _eqMessage;
+    private bool _eqMessageOk;
+
+    // Add equipment modal state
+    private bool _showAddEquipmentModal;
+    private string _newEqName = "";
+    private string _newEqCategory = "";
+    private int _newEqQuantity = 1;
+    private bool _addEqBusy;
+    private string? _addEqMessage;
+
+    // Location modal state
+    private bool _showLocationModal;
+    private bool _mapInitialized;
+    private double _pendingLat = 34.8021; // Syria center default — see NOTE below
+    private double _pendingLng = 38.9968;
+    private bool _locationBusy;
+    private string? _locationMessage;
+    private bool _locationOk;
+    private DotNetObjectReference<VolunteerResources>? _dotNetRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var acctResult = await Api.GetMyAccount();
+        if (!acctResult.IsSuccess || acctResult.Data is null)
+        {
+            _error = "Could not load your account information.";
+            _loading = false;
+            return;
+        }
+
+        var volunteerResult = await Api.GetVolunteerById(acctResult.Data.Id);
+        if (!volunteerResult.IsSuccess || volunteerResult.Data is null)
+        {
+            _error = "Could not load your volunteer profile.";
+            _loading = false;
+            return;
+        }
+
+        _volunteerId = volunteerResult.Data.Id;
+
+        var categoriesResult = await Api.GetEquipmentCategoriesAsync();
+        if (categoriesResult.IsSuccess && categoriesResult.Data is not null)
+            _equipmentCategories = categoriesResult.Data;
+
+        _loading = false;
+        await LoadEquipmentPageAsync(1);
+    }
+
+    // ── Equipment: loading / paging / filter ───────────────────────
+    private async Task LoadEquipmentPageAsync(int page)
+    {
+        page = Math.Max(page, 1);
+        _eqLoading = true;
+        StateHasChanged();
+
+        var result = await Api.GetVolunteerEquipmentsAsync(_volunteerId, page, EqPageSize,
+            string.IsNullOrWhiteSpace(_eqTypeFilter) ? null : _eqTypeFilter);
+
+        if (result.IsSuccess && result.Data is not null)
+        {
+            _equipmentItems = result.Data.Items;
+            _eqPage = page;
+            _eqTotalPages = Math.Max(result.Data.TotalPages, 1);
+            _eqTotalCount = result.Data.TotalCount;
+        }
+        else
+        {
+            _eqMessage = result.ErrorDetail ?? "Failed to load equipment.";
+            _eqMessageOk = false;
+        }
+
+        _eqLoading = false;
+        StateHasChanged();
+    }
+
+    private Task ChangeEquipmentPageAsync(int newPage)
+    {
+        if (newPage < 1 || newPage > _eqTotalPages) return Task.CompletedTask;
+        return LoadEquipmentPageAsync(newPage);
+    }
+
+    private Task OnEquipmentFilterChanged(ChangeEventArgs e)
+    {
+        _eqTypeFilter = e.Value?.ToString() ?? "";
+        return LoadEquipmentPageAsync(1);
+    }
+
+    // ── Equipment: quantity / status / remove ──────────────────────
+    private async Task ChangeQuantityAsync(VolunteerEquipmentResponse eq, bool decrease)
+    {
+        if (_eqRowBusy.Contains(eq.Id)) return;
+        _eqRowBusy.Add(eq.Id);
+        StateHasChanged();
+
+        var model = new Requests.ChangeEquipmentQuantityRequest(1);
+        var result = decrease
+            ? await Api.DecreaseVolunteerEquipmentQuantity(_volunteerId, eq.Id, model)
+            : await Api.IncreaseVolunteerEquipmentQuantity(_volunteerId, eq.Id, model);
+
+        if (result.IsSuccess)
+        {
+            await LoadEquipmentPageAsync(_eqPage);
+        }
+        else
+        {
+            _eqMessage = result.ErrorDetail ?? "Failed to update quantity.";
+            _eqMessageOk = false;
+        }
+
+        _eqRowBusy.Remove(eq.Id);
+        StateHasChanged();
+    }
+
+    private async Task ToggleEquipmentStatusAsync(VolunteerEquipmentResponse eq)
+    {
+        if (_eqRowBusy.Contains(eq.Id)) return;
+        _eqRowBusy.Add(eq.Id);
+        StateHasChanged();
+
+        var result = eq.Status == "Valid"
+            ? await Api.SetEquipmentInvalidAsync(_volunteerId, eq.Id)
+            : await Api.SetEquipmentValidAsync(_volunteerId, eq.Id);
+
+        if (result.IsSuccess)
+        {
+            await LoadEquipmentPageAsync(_eqPage);
+        }
+        else
+        {
+            _eqMessage = result.ErrorDetail ?? "Failed to update equipment status.";
+            _eqMessageOk = false;
+        }
+
+        _eqRowBusy.Remove(eq.Id);
+        StateHasChanged();
+    }
+
+    private async Task RemoveEquipmentAsync(VolunteerEquipmentResponse eq)
+    {
+        if (_eqRowBusy.Contains(eq.Id)) return;
+        _eqRowBusy.Add(eq.Id);
+        StateHasChanged();
+
+        var result = await Api.RemoveVolunteerEquipment(_volunteerId, eq.Id);
+        if (result.IsSuccess)
+        {
+            // If we just removed the last item on this page, step back a page.
+            var targetPage = (_equipmentItems.Count == 1 && _eqPage > 1) ? _eqPage - 1 : _eqPage;
+            await LoadEquipmentPageAsync(targetPage);
+        }
+        else
+        {
+            _eqMessage = result.ErrorDetail ?? "Failed to remove equipment.";
+            _eqMessageOk = false;
+        }
+
+        _eqRowBusy.Remove(eq.Id);
+        StateHasChanged();
+    }
+
+    // ── Add equipment modal ─────────────────────────────────────────
+    private void OpenAddEquipmentModal()
+    {
+        _newEqName = "";
+        _newEqCategory = "";
+        _newEqQuantity = 1;
+        _addEqMessage = null;
+        _showAddEquipmentModal = true;
+    }
+
+    private void CloseAddEquipmentModal() => _showAddEquipmentModal = false;
+
+    private async Task SubmitNewEquipmentAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newEqName) || string.IsNullOrWhiteSpace(_newEqCategory))
+        {
+            _addEqMessage = "Please fill in a name and category.";
+            return;
+        }
+
+        _addEqBusy = true;
+        _addEqMessage = null;
+        StateHasChanged();
+
+        var model = new Requests.CreateVolunteerEquipmentRequest(_newEqName.Trim(), _newEqCategory, _newEqQuantity);
+        var result = await Api.CreateVolunteerEquipment(_volunteerId, model);
+
+        if (result.IsSuccess)
+        {
+            _showAddEquipmentModal = false;
+            await LoadEquipmentPageAsync(1);
+        }
+        else
+        {
+            _addEqMessage = result.ErrorDetail ?? "Failed to add equipment.";
+        }
+
+        _addEqBusy = false;
+    }
+
+    // ── Location modal + map interop ─────────────────────────────────
+    private void OpenLocationModal()
+    {
+        _locationMessage = null;
+        _mapInitialized = false;
+        _showLocationModal = true;
+    }
+
+    private async Task CloseLocationModal()
+    {
+        _showLocationModal = false;
+        _mapInitialized = false;
+        await JS.InvokeVoidAsync("mapInterop.destroyMap", "volunteerLocationMap");
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_showLocationModal && !_mapInitialized)
+        {
+            _mapInitialized = true;
+            _dotNetRef ??= DotNetObjectReference.Create(this);
+            // NOTE: defaults to Syria's center since VolunteerResponse doesn't
+            // currently expose the volunteer's last known lat/lng. If/when it
+            // does, pass those values in here instead of the hardcoded default.
+            await JS.InvokeVoidAsync("mapInterop.initMap", "volunteerLocationMap", _pendingLat, _pendingLng, _dotNetRef);
+        }
+    }
+
+    [JSInvokable]
+    public Task OnLocationSelected(double lat, double lng)
+    {
+        _pendingLat = lat;
+        _pendingLng = lng;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ConfirmLocationAsync()
+    {
+        _locationBusy = true;
+        _locationMessage = null;
+        StateHasChanged();
+
+        var model = new Requests.UpdateVolunteerLocationRequest { Latitude = _pendingLat, Longitude = _pendingLng };
+        var result = await Api.UpdateVolunteerLocationAsync(_volunteerId, model);
+
+        _locationOk = result.IsSuccess;
+        _locationMessage = result.IsSuccess ? "Location updated." : (result.ErrorDetail ?? "Failed to update location.");
+        _locationBusy = false;
+
+        if (result.IsSuccess)
+        {
+            await Task.Delay(600);
+            await CloseLocationModal();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_showLocationModal)
+            await JS.InvokeVoidAsync("mapInterop.destroyMap", "volunteerLocationMap");
+        _dotNetRef?.Dispose();
+    }
+}

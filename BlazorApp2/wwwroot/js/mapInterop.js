@@ -449,7 +449,10 @@
     // ── Mini map for Update Team Location modal ──────────────────────
     // Same look & interaction as the Report Disaster map: OSM tiles,
     // click-hint overlay, pulsing pin + styled popup (team-blue theme).
-    initLocationMap: function (lat, lng) {
+    // disasterLat/disasterLng (optional) render a second, static red pin
+    // marking the disaster's own location so the leader can see both the
+    // team's position and the disaster site on the same map.
+    initLocationMap: function (lat, lng, disasterLat, disasterLng) {
         var el = document.getElementById('teamLocationMap');
         if (!el) { console.error('[mapInterop] teamLocationMap div not found'); return; }
 
@@ -478,12 +481,16 @@
 
         var SYRIA_CENTER = [34.8021, 38.9968];
         var SYRIA_BOUNDS = [[32.3, 35.6], [37.3, 42.4]];
-        var TEAM_COLOR = '#3b82f6'; // blue — team theme
+        var TEAM_COLOR = '#3b82f6';     // blue — team theme
+        var DISASTER_COLOR = '#ef4444'; // red — same as Report Disaster pin
 
         // If the team already has a real position, center on it; otherwise Syria overview
         var hasPos = (lat !== 0 || lng !== 0);
-        var startCenter = hasPos ? [lat, lng] : SYRIA_CENTER;
-        var startZoom = hasPos ? 10 : 7;
+        var hasDisasterPos = (disasterLat !== 0 || disasterLng !== 0) &&
+            disasterLat !== undefined && disasterLng !== undefined &&
+            disasterLat !== null && disasterLng !== null;
+        var startCenter = hasPos ? [lat, lng] : (hasDisasterPos ? [disasterLat, disasterLng] : SYRIA_CENTER);
+        var startZoom = (hasPos || hasDisasterPos) ? 10 : 7;
 
         var map = L.map('teamLocationMap', {
             center: startCenter,
@@ -538,6 +545,38 @@
             });
         }
 
+        // ── Static disaster pin — read-only reference marker, no drag ──
+        function makeDisasterPinIcon() {
+            return L.divIcon({
+                html: '<div style="' +
+                    'width:34px;height:34px;border-radius:50%;' +
+                    'background:' + DISASTER_COLOR + ';border:2.5px solid #fff;' +
+                    'display:flex;align-items:center;justify-content:center;' +
+                    'font-size:14px;color:#fff;' +
+                    'box-shadow:0 2px 8px rgba(0,0,0,.5)">' +
+                    '<i class="fa-solid fa-fire"></i>' +
+                    '</div>',
+                className: 'ders-disaster-pin',
+                iconSize: [34, 34],
+                iconAnchor: [17, 17],
+                popupAnchor: [0, -20],
+            });
+        }
+
+        function makeDisasterPopup(plat, plng) {
+            return '<div style="min-width:190px;font-family:\'DM Sans\',sans-serif">' +
+                '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+                '<div style="width:10px;height:10px;border-radius:50%;background:' + DISASTER_COLOR + ';' +
+                'box-shadow:0 0 0 3px ' + DISASTER_COLOR + '33;flex-shrink:0"></div>' +
+                '<span style="font-size:14px;font-weight:700;color:' + DISASTER_COLOR + '">Disaster Location</span>' +
+                '</div>' +
+                '<div style="font-size:12px;color:#8a92a8">' +
+                '<i class="fa-solid fa-location-dot" style="margin-right:4px"></i>' +
+                parseFloat(plat).toFixed(5) + ',  ' + parseFloat(plng).toFixed(5) +
+                '</div>' +
+                '</div>';
+        }
+
         // ── Popup — mirrors Report Disaster popup layout ───────────────
         function makePopup(plat, plng) {
             return '<div style="min-width:200px;font-family:\'DM Sans\',sans-serif">' +
@@ -590,7 +629,21 @@
             placePin(lat, lng);
         }
 
+        // ── Place the static disaster marker (reference only, not draggable) ──
+        var disasterMarker = null;
+        if (hasDisasterPos) {
+            disasterMarker = L.marker([disasterLat, disasterLng], { icon: makeDisasterPinIcon(), interactive: true, keyboard: false })
+                .addTo(map)
+                .bindPopup(makeDisasterPopup(disasterLat, disasterLng), { maxWidth: 260, className: 'ders-popup' });
+        }
+
         map.on('click', function (e) { placePin(e.latlng.lat, e.latlng.lng); });
+
+        // ── Fit the view so both the team and disaster pins are visible ──
+        if (hasPos && hasDisasterPos) {
+            var bounds = L.latLngBounds([[lat, lng], [disasterLat, disasterLng]]);
+            map.fitBounds(bounds, { padding: [60, 60], maxZoom: 12 });
+        }
 
         this._maps['teamLocationMap'] = map;
         setTimeout(function () { map.invalidateSize(); }, 400);
@@ -603,6 +656,99 @@
             this._maps[mapId].remove();
             delete this._maps[mapId];
         }
+    },
+
+    // ── Read-only disaster location view (Volunteer Active Disaster page) ──
+    // Same visual language/detail as initDisasterMap (OSM tiles, pulsing red
+    // pin, styled popup) but purely informational: no click-to-place, no
+    // drag, no hidden inputs — just shows where the disaster is.
+    initDisasterViewMap: function (mapId, lat, lng, title) {
+        var el = document.getElementById(mapId);
+        if (!el) { console.error('[mapInterop] ' + mapId + ' div not found'); return; }
+
+        if (this._maps[mapId]) {
+            this._maps[mapId].remove();
+            delete this._maps[mapId];
+        }
+
+        // ── Shared styles — same block used by the other disaster/team maps ─
+        if (!document.getElementById('ders-map-styles')) {
+            var s = document.createElement('style');
+            s.id = 'ders-map-styles';
+            s.textContent = [
+                '@keyframes ders-pulse{',
+                '0%,100%{box-shadow:0 0 0 2px rgba(255,77,79,.27),0 2px 8px rgba(0,0,0,.5)}',
+                '50%{box-shadow:0 0 0 8px transparent,0 2px 8px rgba(0,0,0,.5)}}',
+                '.ders-disaster-pin,.ders-team-pin{background:transparent!important;border:none!important}',
+                '.ders-popup .leaflet-popup-content-wrapper{',
+                '  background:#0f172a;border:1px solid #1e293b;border-radius:12px;',
+                '  box-shadow:0 8px 32px rgba(0,0,0,.6);color:#f1f5f9}',
+                '.ders-popup .leaflet-popup-tip{background:#0f172a}',
+                '.ders-popup .leaflet-popup-close-button{color:#64748b!important}',
+            ].join('');
+            document.head.appendChild(s);
+        }
+
+        var SYRIA_BOUNDS = [[32.3, 35.6], [37.3, 42.4]];
+        var PIN_COLOR = '#ef4444'; // red — same as Report Disaster / Update Location disaster pin
+
+        var map = L.map(mapId, {
+            center: [lat, lng],
+            zoom: 11,
+            minZoom: 5,
+            maxZoom: 17,
+            maxBounds: SYRIA_BOUNDS,
+            maxBoundsViscosity: 0.9,
+            zoomControl: false,
+            dragging: true,
+            scrollWheelZoom: true,
+        });
+
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        // ── OSM tiles — same source/detail as the other disaster maps ────
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
+            maxZoom: 19,
+        }).addTo(map);
+
+        // ── Pulsing pin — mirrors detail-map.js / Report Disaster pin ──
+        var icon = L.divIcon({
+            html: '<div style="' +
+                'width:38px;height:38px;border-radius:50%;' +
+                'background:' + PIN_COLOR + ';border:2.5px solid #fff;' +
+                'display:flex;align-items:center;justify-content:center;' +
+                'font-size:15px;color:#fff;' +
+                'animation:ders-pulse 1.8s ease infinite">' +
+                '<i class="fa-solid fa-fire"></i>' +
+                '</div>',
+            className: 'ders-disaster-pin',
+            iconSize: [38, 38],
+            iconAnchor: [19, 19],
+            popupAnchor: [0, -24],
+        });
+
+        var safeTitle = (title || 'Disaster Location').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        var popupHtml = '<div style="min-width:200px;font-family:\'DM Sans\',sans-serif">' +
+            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+            '<div style="width:10px;height:10px;border-radius:50%;background:' + PIN_COLOR + ';flex-shrink:0;' +
+            'box-shadow:0 0 0 3px ' + PIN_COLOR + '33"></div>' +
+            '<span style="font-size:14px;font-weight:700;color:' + PIN_COLOR + '">' + safeTitle + '</span>' +
+            '</div>' +
+            '<div style="font-size:12px;color:#8a92a8">' +
+            '<i class="fa-solid fa-location-dot" style="margin-right:4px"></i>' +
+            parseFloat(lat).toFixed(5) + ',  ' + parseFloat(lng).toFixed(5) +
+            '</div>' +
+            '</div>';
+
+        L.marker([lat, lng], { icon: icon, interactive: true, keyboard: false })
+            .addTo(map)
+            .bindPopup(popupHtml, { maxWidth: 260, className: 'ders-popup' })
+            .openPopup();
+
+        this._maps[mapId] = map;
+        setTimeout(function () { map.invalidateSize(); }, 400);
+        console.log('[mapInterop] ' + mapId + ' (view) initialised ✅');
     }
 };
 

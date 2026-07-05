@@ -1,0 +1,181 @@
+﻿@page "/volunteer/disaster"
+@layout VolunteerLayout
+@using BlazorApp2.Services
+@using BlazorApp2.Responses
+@inject ServiceApi Api
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div class="vdash-page">
+
+    <!-- ── Header ─────────────────────────────────────────────── -->
+    <div class="vdash-header">
+        <div>
+            <h1 class="vdash-title">
+                <i class="fa-solid fa-fire"></i>
+                Active Disaster
+            </h1>
+            <p class="vdash-greeting">Your current disaster assignment, if any.</p>
+        </div>
+        @if (!_loading && _error is null)
+        {
+            <span class="vdash-updated-at" title="@_lastUpdated.ToString("g")">
+                Updated @FormatRelativeTime(_lastUpdated)
+            </span>
+        }
+    </div>
+
+    @if (_loading)
+    {
+        <div class="vdash-loading">
+            <span class="spinner"></span>
+            <span>Loading disaster status…</span>
+        </div>
+    }
+    else if (_error is not null)
+    {
+        <div class="vdash-error">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            @_error
+        </div>
+    }
+    else if (_currentDisaster is not null)
+    {
+        <!-- ── Alert banner ──────────────────────────────────── -->
+        <div class="vad-alert-banner">
+            <div class="vad-alert-icon">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <div class="vad-alert-text">
+                <span class="vad-alert-kicker">You are currently assigned to</span>
+                <h2 class="vad-alert-title">@_currentDisaster.Title</h2>
+            </div>
+            <span class="vad-alert-status">@_currentDisaster.Status</span>
+        </div>
+
+        <!-- ── Meta grid ─────────────────────────────────────── -->
+        <div class="vad-meta-grid">
+            <div class="vad-meta-card">
+                <div class="vad-meta-icon"><i class="fa-solid fa-location-dot"></i></div>
+                <div class="vad-meta-body">
+                    <div class="vad-meta-label">Location</div>
+                    <div class="vad-meta-value">@_currentDisaster.City, @_currentDisaster.Province</div>
+                </div>
+            </div>
+            <div class="vad-meta-card">
+                <div class="vad-meta-icon"><i class="fa-solid fa-tag"></i></div>
+                <div class="vad-meta-body">
+                    <div class="vad-meta-label">Type</div>
+                    <div class="vad-meta-value">@_currentDisaster.Type</div>
+                </div>
+            </div>
+            <div class="vad-meta-card">
+                <div class="vad-meta-icon"><i class="fa-solid fa-circle-info"></i></div>
+                <div class="vad-meta-body">
+                    <div class="vad-meta-label">Status</div>
+                    <div class="vad-meta-value">@_currentDisaster.Status</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="vdash-panel">
+            <h2 class="vdash-section-title">Disaster Location</h2>
+            <div id="volunteerDisasterMap" class="vad-map"></div>
+        </div>
+
+        <div class="vdash-panel">
+            <h2 class="vdash-section-title">What to do</h2>
+            <p class="vad-hint-text">
+                Keep your <a href="/volunteer/resources">equipment list</a> up to date and make sure
+                your <a href="/volunteer">availability status</a> reflects whether you can respond right now.
+                The coordination team uses this information to manage the response.
+            </p>
+        </div>
+    }
+    else
+    {
+        <!-- ── Idle state ─────────────────────────────────────── -->
+        <div class="vad-idle-panel">
+            <div class="vad-idle-icon"><i class="fa-solid fa-circle-check"></i></div>
+            <h2 class="vad-idle-title">No active disaster assignment</h2>
+            <p class="vad-idle-text">
+                You're not currently assigned to a disaster response. Make sure your
+                availability and location are up to date so the coordination team can
+                reach you quickly when needed.
+            </p>
+            <a class="vad-idle-cta" href="/volunteer">
+                <i class="fa-solid fa-house"></i>
+                <span>Go to Dashboard</span>
+            </a>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private string? _error;
+    private Guid _volunteerId;
+    private DateTime _lastUpdated = DateTime.Now;
+    private VolunteerDisasterResponse? _currentDisaster;
+    private bool _shouldInitMap = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var acctResult = await Api.GetMyAccount();
+        if (!acctResult.IsSuccess || acctResult.Data is null)
+        {
+            _error = "Could not load your account information.";
+            _loading = false;
+            return;
+        }
+
+        var volunteerResult = await Api.GetVolunteerById(acctResult.Data.Id);
+        if (!volunteerResult.IsSuccess || volunteerResult.Data is null)
+        {
+            _error = "Could not load your volunteer profile.";
+            _loading = false;
+            return;
+        }
+
+        _volunteerId = volunteerResult.Data.Id;
+
+        var disasterResult = await Api.GetCurrentVolunteerDisaster(_volunteerId);
+        if (disasterResult.IsSuccess)
+            _currentDisaster = disasterResult.Data;
+
+        _lastUpdated = DateTime.Now;
+        _loading = false;
+
+        if (_currentDisaster is not null)
+            _shouldInitMap = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_shouldInitMap && _currentDisaster is not null)
+        {
+            _shouldInitMap = false;
+            await Task.Delay(150); // let the panel render before Leaflet measures the container
+            await JS.InvokeVoidAsync("mapInterop.initDisasterViewMap",
+                "volunteerDisasterMap",
+                _currentDisaster.Latitude,
+                _currentDisaster.Longitude,
+                _currentDisaster.Title);
+        }
+    }
+
+    private static string FormatRelativeTime(DateTime time)
+    {
+        var span = DateTime.Now - time;
+        if (span.TotalSeconds < 30) return "just now";
+        if (span.TotalMinutes < 1) return $"{(int)span.TotalSeconds}s ago";
+        if (span.TotalHours < 1) return $"{(int)span.TotalMinutes}m ago";
+        if (span.TotalDays < 1) return $"{(int)span.TotalHours}h ago";
+        return time.ToString("MMM d, HH:mm");
+    }
+
+    public void Dispose()
+    {
+        _ = JS.InvokeVoidAsync("mapInterop.destroyMap", "volunteerDisasterMap");
+    }
+}
