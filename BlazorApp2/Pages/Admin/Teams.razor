@@ -903,8 +903,9 @@
     private async Task DecreaseResource(TeamResourceResponse r)
     {
         if (r.Quantity <= 0) return;
-        await PromptQtyAsync($"Decrease {SpaceWords(r.Type)} by:", false, r);
-        await LoadResourcesAsync();
+        var qty = await PromptQtyAsync($"Decrease {SpaceWords(r.Type)} by:", false, r);
+        var result = await ServiceApi.DecreaseResourceQuantityAsync(ActiveTeam.Id, r.Id, qty.Value);
+        if (result.IsSuccess) await LoadResourcesAsync();
     }
 
     private async Task<int?> PromptQtyAsync(string title, bool isIncrease, TeamResourceResponse r)

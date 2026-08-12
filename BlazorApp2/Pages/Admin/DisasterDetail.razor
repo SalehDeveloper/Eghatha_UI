@@ -429,102 +429,127 @@ else
                     </div>
 
                     <!-- ===================== -->
-                    <!-- TEAMS                 -->
+                    <!-- SUB-TABS: Teams / Volunteers -->
                     <!-- ===================== -->
-                    <div class="dispatch-section-title">
-                        <i class="fa-solid fa-people-group"></i>
-                        Available Teams
+                    <div class="dispatch-tabs">
+                        <button type="button"
+                                class="dispatch-tab @(DispatchTab == "teams" ? "active" : "")"
+                                @onclick='() => SetDispatchTab("teams")'>
+                            <i class="fa-solid fa-people-group"></i>
+                            Teams
+                            @if (SelectedTeamIds.Count > 0)
+                            {
+                                <span class="dispatch-tab-count">@SelectedTeamIds.Count</span>
+                            }
+                        </button>
+                        <button type="button"
+                                class="dispatch-tab @(DispatchTab == "volunteers" ? "active" : "")"
+                                @onclick='() => SetDispatchTab("volunteers")'>
+                            <i class="fa-solid fa-hand-holding-heart"></i>
+                            Volunteers
+                            @if (SelectedVolunteerIds.Count > 0)
+                            {
+                                <span class="dispatch-tab-count">@SelectedVolunteerIds.Count</span>
+                            }
+                        </button>
                     </div>
 
-                    @if (DispatchTeamsLoading)
+                    <!-- ===================== -->
+                    <!-- TEAMS PANEL           -->
+                    <!-- ===================== -->
+                    @if (DispatchTab == "teams")
                     {
-                        <div class="table-loading">
-                            <span class="spinner"></span>
-                        </div>
-                    }
-                    else if (!AvailableTeams.Any())
-                    {
-                        <p class="muted-text">No teams available</p>
-                    }
-                    else
-                    {
-                        @foreach (var t in AvailableTeams)
-                        {
-                            <div class="dispatch-item @(SelectedTeamIds.Contains(t.TeamId) ? "selected" : "")"
-                                 @onclick="() => ToggleTeam(t.TeamId)">
-
-                                <input type="checkbox"
-                                       checked="@SelectedTeamIds.Contains(t.TeamId)"
-                                       @onclick:stopPropagation="true"
-                                       @onchange="() => ToggleTeam(t.TeamId)" />
-
-                                <div class="dispatch-item-info">
-                                    <div class="dispatch-item-name">
-                                        @t.TeamName
-                                      
-                                    </div>
-                                    <div class="dispatch-item-sub">
-                                        @t.Speciality &nbsp;·&nbsp; @t.Province, @t.City
-                                        &nbsp;·&nbsp;
-                                        <i class="fa-solid fa-route" style="font-size:10px"></i>
-                                        @t.DistanceKm.ToString("F1") km
-                                        &nbsp;·&nbsp;
-                                        <i class="fa-solid fa-clock" style="font-size:10px"></i>
-                                        @t.DurationMinutes.ToString("F0") min
-                                        &nbsp;·&nbsp;
-                                        Score: <strong>@t.Score.ToString("F1")</strong>
-                                    </div>
+                        <div class="dispatch-tab-panel">
+                            @if (DispatchTeamsLoading)
+                            {
+                                <div class="table-loading">
+                                    <span class="spinner"></span>
                                 </div>
+                            }
+                            else if (!AvailableTeams.Any())
+                            {
+                                <p class="muted-text">No teams available</p>
+                            }
+                            else
+                            {
+                                @foreach (var t in AvailableTeams)
+                                {
+                                    <div class="dispatch-item @(SelectedTeamIds.Contains(t.TeamId) ? "selected" : "")"
+                                         @onclick="() => ToggleTeam(t.TeamId)">
 
-                            </div>
-                        }
+                                        <input type="checkbox"
+                                               checked="@SelectedTeamIds.Contains(t.TeamId)"
+                                               @onclick:stopPropagation="true"
+                                               @onchange="() => ToggleTeam(t.TeamId)" />
+
+                                        <div class="dispatch-item-info">
+                                            <div class="dispatch-item-name">
+                                                @t.TeamName
+                                            </div>
+                                            <div class="dispatch-item-sub">
+                                                @t.Speciality &nbsp;·&nbsp; @t.Province, @t.City
+                                                &nbsp;·&nbsp;
+                                                <i class="fa-solid fa-route" style="font-size:10px"></i>
+                                                @t.DistanceKm.ToString("F1") km
+                                                &nbsp;·&nbsp;
+                                                <i class="fa-solid fa-clock" style="font-size:10px"></i>
+                                                @t.DurationMinutes.ToString("F0") min
+                                                &nbsp;·&nbsp;
+                                                Score: <strong>@t.Score.ToString("F1")</strong>
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                }
+                            }
+                        </div>
                     }
 
                     <!-- ===================== -->
-                    <!-- VOLUNTEERS            -->
+                    <!-- VOLUNTEERS PANEL      -->
                     <!-- ===================== -->
-                    <div class="dispatch-section-title" style="margin-top: 20px;">
-                        <i class="fa-solid fa-hand-holding-heart"></i>
-                        Available Volunteers
-                    </div>
-
-                    @if (VolunteersLoading)
+                    @if (DispatchTab == "volunteers")
                     {
-                        <div class="table-loading">
-                            <span class="spinner"></span>
-                        </div>
-                    }
-                    else if (!AvailableVolunteers.Any())
-                    {
-                        <p class="muted-text">No volunteers available</p>
-                    }
-                    else
-                    {
-                        @foreach (var v in AvailableVolunteers)
-                        {
-                            <div class="dispatch-item @(SelectedVolunteerIds.Contains(v.VolunteerId) ? "selected" : "")"
-                                 @onclick="() => ToggleVolunteer(v.VolunteerId)">
-
-                                <input type="checkbox"
-                                       checked="@SelectedVolunteerIds.Contains(v.VolunteerId)"
-                                       @onclick:stopPropagation="true"
-                                       @onchange="() => ToggleVolunteer(v.VolunteerId)" />
-
-                                <div class="dispatch-item-info">
-                                    <div class="dispatch-item-name">@v.Speciality</div>
-                                    <div class="dispatch-item-sub">
-                                        <i class="fa-solid fa-route" style="font-size:10px"></i>
-                                        @v.DistanceKm.ToString("F1") km
-                                        &nbsp;·&nbsp;
-                                        <i class="fa-solid fa-clock" style="font-size:10px"></i>
-                                        @v.DurationMinutes.ToString("F0") min
-                                        &nbsp;·&nbsp;
-                                        Score: <strong>@v.Score.ToString("F1")</strong>
-                                    </div>
+                        <div class="dispatch-tab-panel">
+                            @if (VolunteersLoading)
+                            {
+                                <div class="table-loading">
+                                    <span class="spinner"></span>
                                 </div>
+                            }
+                            else if (!AvailableVolunteers.Any())
+                            {
+                                <p class="muted-text">No volunteers available</p>
+                            }
+                            else
+                            {
+                                @foreach (var v in AvailableVolunteers)
+                                {
+                                    <div class="dispatch-item @(SelectedVolunteerIds.Contains(v.VolunteerId) ? "selected" : "")"
+                                         @onclick="() => ToggleVolunteer(v.VolunteerId)">
 
-                            </div>
-                        }
+                                        <input type="checkbox"
+                                               checked="@SelectedVolunteerIds.Contains(v.VolunteerId)"
+                                               @onclick:stopPropagation="true"
+                                               @onchange="() => ToggleVolunteer(v.VolunteerId)" />
+
+                                        <div class="dispatch-item-info">
+                                            <div class="dispatch-item-name">@v.Speciality</div>
+                                            <div class="dispatch-item-sub">
+                                                <i class="fa-solid fa-route" style="font-size:10px"></i>
+                                                @v.DistanceKm.ToString("F1") km
+                                                &nbsp;·&nbsp;
+                                                <i class="fa-solid fa-clock" style="font-size:10px"></i>
+                                                @v.DurationMinutes.ToString("F0") min
+                                                &nbsp;·&nbsp;
+                                                Score: <strong>@v.Score.ToString("F1")</strong>
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                }
+                            }
+                        </div>
                     }
 
                 </div>
@@ -581,6 +606,7 @@ else
     private List<RecommendedVolunteerResponse> AvailableVolunteers = new();
     private HashSet<Guid> SelectedVolunteerIds = new();
     private bool VolunteersLoading = false;
+    private string DispatchTab = "teams";
 
 
     // ── Lifecycle ─────────────────────────────────────────────────
@@ -686,6 +712,7 @@ else
 
         SelectedTeamIds = new();
         SelectedVolunteerIds = new();
+        DispatchTab = "teams";
 
         var teamsTask = ServiceApi.GetRecommendedTeams(Detail.Id);
         var volunteersTask = ServiceApi.GetRecommendedVolunteers(Detail.Id);
@@ -712,6 +739,8 @@ else
         ShowDispatch = false;
         DispatchError = "";
     }
+
+    private void SetDispatchTab(string tab) => DispatchTab = tab;
 
     private void ToggleTeam(Guid id)
     {
