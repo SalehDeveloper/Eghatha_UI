@@ -16,11 +16,17 @@ window.DersTheme = {
         try { return localStorage.getItem('ders-theme') || 'dark'; } catch { return 'dark'; }
     },
 
+
     /* Apply saved preference immediately (call on page load) */
     init() {
         const saved = this.getSaved();
         document.documentElement.setAttribute('data-theme', saved);
         return saved;   // returned to Blazor so it can sync its boolean
+    },
+
+    /* Smooth-scroll an element into view — used by the AI chat page */
+    scrollIntoView(elementId) {
+        document.getElementById(elementId)?.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
 };
 

@@ -1,0 +1,152 @@
+﻿@page "/admin/ai-assistant"
+@layout AdminLayout
+@inject BlazorApp2.Services.ServiceApi ServiceApi
+@inject IJSRuntime JS
+@using BlazorApp2.Requests
+@using BlazorApp2.Responses
+
+<div class="ai-chat-page">
+
+    <div class="ai-chat-header">
+        <div class="ai-chat-header-icon"><i class="fa-solid fa-robot"></i></div>
+        <div>
+            <h2 class="ai-chat-title">AI Assistant</h2>
+            <p class="ai-chat-subtitle">Ask anything about disasters, teams or volunteers.</p>
+        </div>
+        @if (_messages.Count > 0)
+        {
+            <button class="btn-icon ai-chat-clear" @onclick="ClearChat" title="Clear conversation">
+                <i class="fa-solid fa-trash-can"></i>
+            </button>
+        }
+    </div>
+
+    <div class="ai-chat-window" id="ai-chat-window">
+
+        @if (_messages.Count == 0)
+        {
+            <div class="ai-chat-empty">
+                <div class="ai-chat-empty-icon"><i class="fa-solid fa-comments"></i></div>
+                <p>Start a conversation with the assistant.</p>
+            </div>
+        }
+
+        @foreach (var msg in _messages)
+        {
+            <div class="ai-chat-row @(msg.IsUser ? "from-user" : "from-ai")">
+
+                @if (!msg.IsUser)
+                {
+                    <div class="ai-chat-avatar ai"><i class="fa-solid fa-robot"></i></div>
+                }
+
+                <div class="ai-chat-bubble @(msg.IsUser ? "user" : "ai") @(msg.IsError ? "error" : "")">
+                    <div class="ai-chat-text">@msg.Text</div>
+                    <div class="ai-chat-time">@msg.Time.ToLocalTime().ToString("HH:mm")</div>
+                </div>
+
+                @if (msg.IsUser)
+                {
+                    <div class="ai-chat-avatar user"><i class="fa-solid fa-user"></i></div>
+                }
+            </div>
+        }
+
+        @if (_isSending)
+        {
+            <div class="ai-chat-row from-ai">
+                <div class="ai-chat-avatar ai"><i class="fa-solid fa-robot"></i></div>
+                <div class="ai-chat-bubble ai typing">
+                    <span class="ai-typing-dot"></span>
+                    <span class="ai-typing-dot"></span>
+                    <span class="ai-typing-dot"></span>
+                </div>
+            </div>
+        }
+
+        <div id="ai-chat-anchor"></div>
+    </div>
+
+    <div class="ai-chat-composer">
+        <textarea class="ai-chat-input"
+                  placeholder="Type your question..."
+                  rows="1"
+                  disabled="@_isSending"
+                  @bind="_currentInput"
+                  @bind:event="oninput"
+                  @onkeydown="HandleKeyDown"></textarea>
+
+        <button class="ai-chat-send" disabled="@(_isSending || string.IsNullOrWhiteSpace(_currentInput))" @onclick="SendMessage" title="Send">
+            @if (_isSending)
+            {
+                <span class="spinner spinner-sm"></span>
+            }
+            else
+            {
+                <i class="fa-solid fa-paper-plane"></i>
+            }
+        </button>
+    </div>
+
+</div>
+
+@code {
+    private readonly List<ChatMessage> _messages = new();
+    private string _currentInput = string.Empty;
+    private bool _isSending = false;
+
+    private async Task SendMessage()
+    {
+        var question = _currentInput.Trim();
+        if (string.IsNullOrWhiteSpace(question) || _isSending)
+            return;
+
+        _messages.Add(new ChatMessage(question, true, DateTime.UtcNow));
+        _currentInput = string.Empty;
+        _isSending = true;
+        StateHasChanged();
+        await ScrollToBottom();
+
+        var result = await ServiceApi.GetAiAssistantResponseAsync(new AiAssistantRequest(question));
+
+        if (result.IsSuccess && result.Data is not null)
+        {
+            _messages.Add(new ChatMessage(result.Data.Answer, false, DateTime.UtcNow));
+        }
+        else
+        {
+            _messages.Add(new ChatMessage("Sorry, I couldn't get a response right now. Please try again.", false, DateTime.UtcNow, IsError: true));
+        }
+
+        _isSending = false;
+        StateHasChanged();
+        await ScrollToBottom();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendMessage();
+        }
+    }
+
+    private void ClearChat()
+    {
+        _messages.Clear();
+    }
+
+    private async Task ScrollToBottom()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("DersTheme.scrollIntoView", "ai-chat-anchor");
+        }
+        catch
+        {
+            // JS interop best-effort — ignore if the helper isn't wired up yet
+        }
+    }
+
+    private sealed record ChatMessage(string Text, bool IsUser, DateTime Time, bool IsError = false);
+}

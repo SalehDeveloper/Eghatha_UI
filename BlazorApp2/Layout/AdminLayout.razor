@@ -51,7 +51,10 @@
         <NavLink class="nav-item" href="/admin/notifications">
             <i class="fa-solid fa-bell"></i><span>Notifications</span>
         </NavLink>
-       
+        <NavLink class="nav-item" href="/admin/ai-assistant">
+            <i class="fa-solid fa-robot"></i><span>AI Assistant</span>
+        </NavLink>
+
     </nav>
 
     <div class="sidebar-footer">
@@ -178,18 +181,18 @@
     // ── Connection status ─────────────────────────────────────────
     private string ConnectionStatusClass => HubService.ConnectionState switch
     {
-        HubConnectionState.Connected    => "connected",
-        HubConnectionState.Connecting   => "connecting",
+        HubConnectionState.Connected => "connected",
+        HubConnectionState.Connecting => "connecting",
         HubConnectionState.Reconnecting => "connecting",
-        _                               => "disconnected"
+        _ => "disconnected"
     };
 
     private string ConnectionStatusLabel => HubService.ConnectionState switch
     {
-        HubConnectionState.Connected    => "Live",
-        HubConnectionState.Connecting   => "Connecting…",
+        HubConnectionState.Connected => "Live",
+        HubConnectionState.Connecting => "Connecting…",
         HubConnectionState.Reconnecting => "Reconnecting…",
-        _                               => "Offline"
+        _ => "Offline"
     };
 
     // ── Lifecycle ─────────────────────────────────────────────────
@@ -199,10 +202,10 @@
 
         // Subscribe to hub events — handlers use InvokeAsync to stay on UI thread
         HubService.OnVolunteerRegistered += HandleVolunteerRegistered;
-        HubService.OnDisasterReported    += HandleDisasterReported;
+        HubService.OnDisasterReported += HandleDisasterReported;
 
         var accountTask = ServiceApi.GetMyAccount();
-        var countTask   = ServiceApi.GetUnreadCountAsync();
+        var countTask = ServiceApi.GetUnreadCountAsync();
         await Task.WhenAll(accountTask, countTask);
 
         if (accountTask.Result.IsSuccess)
@@ -263,13 +266,13 @@
                 var items = (result.Data.Items ?? Enumerable.Empty<Responses.NotificationResponse>())
                     .Select(n => new BlazorApp2.Services.NotificationDropdownItem
                     {
-                        Id        = n.Id,
-                        Title     = n.Title,
-                        Message   = n.Message,
-                        Url       = n.Url,
-                        IsRead    = n.IsRead,
+                        Id = n.Id,
+                        Title = n.Title,
+                        Message = n.Message,
+                        Url = n.Url,
+                        IsRead = n.IsRead,
                         CreatedAt = n.CreatedAt,
-                        Type      = n.Type
+                        Type = n.Type
                     }).ToList();
 
                 NotifState.SetRecent(items);
@@ -302,9 +305,9 @@
     // ── Dispose ───────────────────────────────────────────────────
     public async ValueTask DisposeAsync()
     {
-        NotifState.OnChange              -= StateHasChanged;
+        NotifState.OnChange -= StateHasChanged;
         HubService.OnVolunteerRegistered -= HandleVolunteerRegistered;
-        HubService.OnDisasterReported    -= HandleDisasterReported;
+        HubService.OnDisasterReported -= HandleDisasterReported;
         await HubService.StopAsync();
     }
 
@@ -322,16 +325,17 @@
     private string GetPageTitle()
     {
         var path = Navigation.Uri;
-        if (path.Contains("/dashboard"))               return "Dashboard";
-        if (path.Contains("/disasters/"))              return "Disaster Detail";
-        if (path.Contains("/disasters"))               return "Disasters";
-        if (path.Contains("/map"))                     return "Live Map";
-        if (path.Contains("/accounts"))                return "Accounts";
-        if (path.Contains("/teams"))                   return "Teams";
+        if (path.Contains("/dashboard")) return "Dashboard";
+        if (path.Contains("/disasters/")) return "Disaster Detail";
+        if (path.Contains("/disasters")) return "Disasters";
+        if (path.Contains("/map")) return "Live Map";
+        if (path.Contains("/accounts")) return "Accounts";
+        if (path.Contains("/teams")) return "Teams";
         if (path.Contains("/volunteer-registrations")) return "Registration Detail";
-        if (path.Contains("/volunteers"))              return "Volunteers";
-        if (path.Contains("/notifications"))           return "Notifications";
-        if (path.Contains("/settings"))                return "Settings";
+        if (path.Contains("/volunteers")) return "Volunteers";
+        if (path.Contains("/notifications")) return "Notifications";
+        if (path.Contains("/ai-assistant")) return "AI Assistant";
+        if (path.Contains("/settings")) return "Settings";
         return "DERS";
     }
 
@@ -355,7 +359,7 @@
     {
         var diff = DateTime.UtcNow - dt.ToUniversalTime();
         if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m ago";
-        if (diff.TotalHours   < 24) return $"{(int)diff.TotalHours}h ago";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
         return $"{(int)diff.TotalDays}d ago";
     }
 }

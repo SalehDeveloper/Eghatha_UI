@@ -148,6 +148,21 @@ namespace BlazorApp2.Services
             return await HandleErrorResponseAsync<DisasterStatisticsResponse>(response);
         }
 
+
+        // ═══════════════════════════════════════════════════════
+        // AiAssistnat
+        // ═══════════════════════════════════════════════════════
+
+        public async Task<ApiResult<AiAssistantResponse>> GetAiAssistantResponseAsync(AiAssistantRequest model)
+        {
+            var response = await _httpClient.PostAsJsonAsync("api/v1/ai-assistant/ask", model);
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<AiAssistantResponse>(JsonOptions);
+                return ApiResult<AiAssistantResponse>.Success(data!);
+            }
+            return await HandleErrorResponseAsync<AiAssistantResponse>(response);
+        }
         // ═══════════════════════════════════════════════════════
         // DISASTERS
         // ═══════════════════════════════════════════════════════
