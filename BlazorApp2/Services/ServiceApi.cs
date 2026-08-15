@@ -871,7 +871,7 @@ string cvContentType)
         public async Task<ApiResult<PagedResponse<VolunteerEquipmentResponse>>> GetVolunteerEquipmentsAsync(Guid volunteerId, int page = 1, int pageSize = 10, string? type = null)
         {
             var url = BuildUrl($"api/v1/volunteers/{volunteerId}/equipments",
-                ("Page", page.ToString()), ("PageSize", pageSize.ToString()), ("Type", type));
+                ("Page", page.ToString()), ("PageSize", pageSize.ToString()), ("Category", type));
 
             var response = await _httpClient.GetAsync(url);
             if (response.IsSuccessStatusCode)
@@ -881,7 +881,6 @@ string cvContentType)
             }
             return await HandleErrorResponseAsync<PagedResponse<VolunteerEquipmentResponse>>(response);
         }
-
         //evaluation
         public async Task<ApiResult<string>> EvaluateVolunteerAsync(Guid disasterId, Guid volunteerid, EvaluateVolunteerRequest request)
         {

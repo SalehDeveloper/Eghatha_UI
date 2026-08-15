@@ -435,7 +435,7 @@
                         <i class="fa-solid fa-ban"></i> Deactivate
                     </button>
                 }
-                else if (ActiveTeam.Status == "InActive")
+                else
                 {
                     <button class="action-btn activate-btn" @onclick="() => ActivateTeam(ActiveTeam.Id)">
                         <i class="fa-solid fa-circle-check"></i> Activate
@@ -860,14 +860,23 @@
     {
         if (ActiveTeam is null) return;
         var result = await ServiceApi.ActivateTeamAsync(ActiveTeam.Id);
-        if (result.IsSuccess) await LoadMembersAsync();
+        if (result.IsSuccess) await RefreshActiveTeamAsync();
     }
 
     private async Task DeActivateTeam(Guid teamId)
     {
         if (ActiveTeam is null) return;
         var result = await ServiceApi.DeActivateTeamAsync(ActiveTeam.Id);
-        if (result.IsSuccess) await LoadMembersAsync();
+        if (result.IsSuccess) await RefreshActiveTeamAsync();
+    }
+
+    private async Task RefreshActiveTeamAsync()
+    {
+        if (ActiveTeam is null) return;
+        var teamId = ActiveTeam.Id;
+        await LoadTeamsAsync();
+        var updated = Items.FirstOrDefault(x => x.Id == teamId);
+        if (updated is not null) ActiveTeam = updated;
     }
 
     // ── Resource actions ────────────────────────────────────────────
