@@ -166,7 +166,28 @@ namespace BlazorApp2.Services
         // ═══════════════════════════════════════════════════════
         // DISASTERS
         // ═══════════════════════════════════════════════════════
+        public async Task<ApiResult<string>> CancelDisasterAsync(Guid disasterId)
+        {
+            var response = await _httpClient.PostAsync($"api/v1/disasters/{disasterId}/cancel", null);
+            if (response.IsSuccessStatusCode)
+                return ApiResult<string>.Success("");
+            return await HandleErrorResponseAsync<string>(response);
+        }
 
+        public async Task<ApiResult<SpamCheckResponse>> CheckDisasterSpamAsync(
+            Guid disasterId, double radiusKm = 2, int windowMinutes = 20)
+        {
+            var url = BuildUrl($"api/v1/disasters/{disasterId}/spam-check",
+                ("RadiusKm", radiusKm.ToString()), ("WindowMinutes", windowMinutes.ToString()));
+
+            var response = await _httpClient.GetAsync(url);
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<SpamCheckResponse>(JsonOptions);
+                return ApiResult<SpamCheckResponse>.Success(data!);
+            }
+            return await HandleErrorResponseAsync<SpamCheckResponse>(response);
+        }
         public async Task<ApiResult<string>> DispatchResourceAsync(
     Guid disasterId,
     DispatchResourceToDisasterRequest request)

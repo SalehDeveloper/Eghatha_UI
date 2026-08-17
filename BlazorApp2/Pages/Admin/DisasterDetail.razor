@@ -32,7 +32,15 @@ else
     <!-- ── Page header ── -->
     <div class="page-header">
         <div>
-            <h1 class="page-title">@Detail.Title</h1>
+            <h1 class="page-title">
+                @Detail.Title
+                @if (SpamResult is { IsSpam: true })
+                {
+                    <span class="badge badge-spam" title="@SpamResult.Reasoning">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Spam
+                    </span>
+                }
+            </h1>
             <p class="page-subtitle">
                 @Detail.Province, @Detail.City &nbsp;·&nbsp; @Detail.Type
             </p>
@@ -60,8 +68,30 @@ else
                 </button>
             }
 
+            @if (Detail.Status == "Reported")
+            {
+                <button class="btn btn-danger" @onclick="CancelDisaster" disabled="@IsActing">
+                    @if (IsActing)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-ban"></i>
+                    }
+                    Cancel Disaster
+                </button>
+            }
+
         </div>
     </div>
+
+    @if (!string.IsNullOrEmpty(ActionError))
+    {
+        <div class="api-error" style="margin-bottom: var(--sp-4)">
+            <i class="fa-solid fa-circle-exclamation"></i> @ActionError
+        </div>
+    }
 
 
     <!-- ── TABS ── -->
@@ -588,6 +618,7 @@ else
     private string ActionError = "";
     private string ActiveTab = "overview";
     private DisasterDetailResponse? Detail;
+    private SpamCheckResponse? SpamResult;
 
     private List<DisasterTimelineEvent?> Timeline = new();
 
@@ -629,6 +660,22 @@ else
         }
 
         IsLoading = false;
+
+        if (Detail is not null)
+            _ = LoadSpamCheckAsync(guid);
+    }
+
+    // Runs after the page has already rendered so the spam-check call (AI-backed,
+    // can take a couple seconds) never delays showing the disaster details.
+    private async Task LoadSpamCheckAsync(Guid disasterId)
+    {
+        var spam = await ServiceApi.CheckDisasterSpamAsync(disasterId);
+        if (spam.IsSuccess)
+        {
+            SpamResult = spam.Data;
+            StateHasChanged();
+        }
+        // Silently ignore failures — spam check is advisory, not critical path.
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -695,9 +742,28 @@ else
     }
 
     // ── Actions ────────────────────────────────────────────────────
+    private async Task CancelDisaster()
+    {
+        if (Detail is null) return;
 
+        ActionError = "";
+        IsActing = true;
 
+        var result = await ServiceApi.CancelDisasterAsync(Detail.Id);
 
+        if (result.IsSuccess)
+        {
+            var refreshed = await ServiceApi.GetDisasterByIdAsync(Detail.Id);
+            if (refreshed.IsSuccess)
+                Detail = refreshed.Data;
+        }
+        else
+        {
+            ActionError = result.ErrorDetail;
+        }
+
+        IsActing = false;
+    }
 
     // ── Dispatch modal ─────────────────────────────────────────────
     private async Task OpenDispatch()

@@ -386,6 +386,15 @@
     color: var(--color-info);
 }
 
+.badge-spam {
+    background: var(--color-critical-bg);
+    color: var(--color-critical);
+    border: 1px solid rgba(255,77,79,.3);
+    margin-left: var(--sp-3);
+    gap: 5px;
+    vertical-align: middle;
+}
+
 .badge-available {
     background: var(--color-success-bg);
     color: var(--color-success);
@@ -852,12 +861,35 @@
     transition: all .2s ease;
 }
 
-    .btn-map:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 12px 28px rgba(37, 99, 235, .35);
-        color: white;
+.btn-danger {
+    display: inline-flex;
+    align-items: center;
+    gap: .55rem;
+    padding: .75rem 1.1rem;
+    background: transparent;
+    color: var(--color-critical);
+    border: 1px solid rgba(255,77,79,.35);
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .2s ease;
+}
+
+    .btn-danger:hover:not(:disabled) {
+        background: var(--color-critical-bg);
     }
 
-    .btn-map i {
-        font-size: .95rem;
+    .btn-danger:disabled {
+        opacity: .6;
+        cursor: not-allowed;
     }
+
+.btn-map:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(37, 99, 235, .35);
+    color: white;
+}
+
+.btn-map i {
+    font-size: .95rem;
+}
