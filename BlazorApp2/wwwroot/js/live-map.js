@@ -25,6 +25,7 @@ window.DersLiveMap = (() => {
         '#f43f5e', '#a855f7',
     ];
     let _paletteIndex = 0;
+    let _disasterData = {};      // { disasterId(string): last full pin payload }
 
     function _assignColor(disasterId) {
         if (!_disasterColors[disasterId]) {
@@ -41,6 +42,7 @@ window.DersLiveMap = (() => {
         // Reset state
         _disasterMarkers = {}; _teamMarkers = {};
         _disasterColors = {}; _paletteIndex = 0;
+        _disasterData = {};
 
         const el = document.getElementById(elementId);
         if (!el) { console.warn('[LiveMap] element not found:', elementId); return; }
@@ -78,6 +80,8 @@ window.DersLiveMap = (() => {
         if (isNaN(lat) || isNaN(lng)) return;
 
         const id = String(d.id);
+        _disasterData[id] = d; // remember it for later status updates
+
         const color = _assignColor(id);
         const isResolved = (d.status || '').toLowerCase() === 'resolved'
             || (d.status || '').toLowerCase() === 'closed';
@@ -90,6 +94,14 @@ window.DersLiveMap = (() => {
 
         _disasterMarkers[id] = marker;
         _disasterLayer.addLayer(marker);
+        // Draw tethers for any team pins that arrived before this disaster pin did
+        Object.keys(_teamMarkers).forEach(teamId => {
+            const entry = _teamMarkers[teamId];
+            if (entry.disasterId === id && !entry.line) {
+                const pos = entry.marker.getLatLng();
+                _refreshTether(teamId, pos.lat, pos.lng, id);
+            }
+        });
     }
 
     /* ── Team pin ──────────────────────────────────────────────────── */
@@ -123,8 +135,16 @@ window.DersLiveMap = (() => {
         const accentColor = disasterId ? _assignColor(disasterId) : '#3b82f6';
 
         if (_teamMarkers[id]) {
+            const entry = _teamMarkers[id];
+
             // Update position
-            _teamMarkers[id].marker.setLatLng([lat, lng]);
+            entry.marker.setLatLng([lat, lng]);
+
+            // Refresh icon (status) and popup content — without this, status
+            // changes (e.g. Active -> Returning) never show up on an existing pin
+            entry.marker.setIcon(_teamIcon(accentColor, t.status));
+            entry.marker.setPopupContent(_teamPopup(t, accentColor));
+
             // Update tether line
             _refreshTether(id, lat, lng, disasterId);
         } else {
@@ -142,16 +162,62 @@ window.DersLiveMap = (() => {
         }
     }
 
+    /* ── Disaster status update (in place, no marker re-creation) ───── */
+    function updatePinStatus(id, status) {
+        if (!_map) return;
+        const key = String(id);
+        const marker = _disasterMarkers[key];
+        if (!marker) return;
+
+        // Merge the new status into whatever we last knew about this pin
+        const d = { ..._disasterData[key], status };
+        _disasterData[key] = d;
+
+        const color = _assignColor(key);
+        const isResolved = (status || '').toLowerCase() === 'resolved'
+            || (status || '').toLowerCase() === 'closed';
+        const pinColor = isResolved ? '#6b7280' : color;
+
+        marker.setIcon(_disasterIcon(d.type, pinColor, isResolved));
+        marker.setPopupContent(_disasterPopup(d, pinColor));
+    }
+
+    /* ── Remove a disaster pin entirely (e.g. on close) ──────────────── */
+    function removePin(id) {
+        if (!_map) return;
+        const key = String(id);
+
+        const marker = _disasterMarkers[key];
+        if (marker) {
+            _disasterLayer.removeLayer(marker);
+            delete _disasterMarkers[key];
+        }
+        delete _disasterData[key];
+
+        // Drop tether lines still pointing at this disaster
+        Object.keys(_teamMarkers).forEach(teamId => {
+            const entry = _teamMarkers[teamId];
+            if (entry.disasterId === key) {
+                if (entry.line) {
+                    _lineLayer.removeLayer(entry.line);
+                    entry.line = null;
+                }
+                entry.disasterId = null;
+            }
+        });
+    }
+
     /* ── Tether line (team → disaster) ────────────────────────────── */
     function _refreshTether(teamId, lat, lng, disasterId) {
         const entry = _teamMarkers[teamId];
         if (!entry) return;
 
-        // Remove old line
         if (entry.line) {
             _lineLayer.removeLayer(entry.line);
             entry.line = null;
         }
+
+        entry.disasterId = disasterId;   // ← moved here
 
         if (!disasterId) return;
         const dm = _disasterMarkers[disasterId];
@@ -161,16 +227,12 @@ window.DersLiveMap = (() => {
         const color = _assignColor(disasterId);
 
         const line = L.polyline([[lat, lng], [dLatLng.lat, dLatLng.lng]], {
-            color,
-            weight: 2,
-            opacity: 0.55,
-            dashArray: '6 5',
-            className: 'ders-tether',
+            color, weight: 2, opacity: 0.55, dashArray: '6 5', className: 'ders-tether',
         });
 
         entry.line = line;
-        entry.disasterId = disasterId;
         _lineLayer.addLayer(line);
+        // note: entry.disasterId = disasterId; line removed from here, it's set above now
     }
 
     /* ── flyTo / centre / destroy ──────────────────────────────────── */
@@ -192,6 +254,7 @@ window.DersLiveMap = (() => {
         _disasterLayer = null; _teamLayer = null; _lineLayer = null;
         _disasterMarkers = {}; _teamMarkers = {};
         _disasterColors = {}; _paletteIndex = 0;
+        _disasterData = {};
     }
 
     /* ── Icon builders ─────────────────────────────────────────────── */
@@ -361,5 +424,5 @@ window.DersLiveMap = (() => {
     })();
 
     /* ── Public API ────────────────────────────────────────────────── */
-    return { init, addPin, updateTeamPin, flyTo, centre, destroy };
+    return { init, addPin, updateTeamPin, updatePinStatus, removePin, flyTo, centre, destroy };
 })();

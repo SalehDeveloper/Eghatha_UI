@@ -10,9 +10,11 @@ namespace BlazorApp2.Services
         public event Func<DisasterReportedEvent, Task>? OnDisasterReported;
         public event Func<TeamLocationEvent, Task>? OnTeamLocationUpdated;
 
-        // OnToastNotification removed — HubToastContainer subscribes directly
-        // to OnVolunteerRegistered / OnDisasterReported instead.
-
+        // ── NEW ──
+        public event Func<DisasterResolvedEvent, Task>? OnDisasterResolved;
+        public event Func<TeamStatusUpdatedEvent, Task>? OnTeamStatusUpdated;
+        public event Func<Guid, Task>? OnDisasterClosed;
+        public event Func<Guid, Guid, Task>? OnTeamAssignedToDisaster;
         private HubConnection? _hub;
         private bool _started;
 
@@ -35,7 +37,6 @@ namespace BlazorApp2.Services
 
             var baseUrl = "https://localhost:7244";
 
-            // ── Load token BEFORE building the connection ──────────────────
             var tokenResponse = await _accountManagement.LoadAccessTokenFromStorage();
 
             if (tokenResponse?.ExpiresOnUtc <= DateTime.UtcNow)
@@ -50,7 +51,6 @@ namespace BlazorApp2.Services
                 {
                     opts.AccessTokenProvider = async () =>
                     {
-                        
                         var t = await _accountManagement.LoadAccessTokenFromStorage();
                         if (t?.ExpiresOnUtc <= DateTime.UtcNow)
                             t = await _accountManagement.RefreshTokenAsync();
@@ -60,7 +60,6 @@ namespace BlazorApp2.Services
                 .WithAutomaticReconnect()
                 .Build();
 
-            // ── Volunteer registered ──────────────────────────────────────
             _hub.On<Guid, string, string, DateTimeOffset>(
                 "NewVolunteerRegisterd",
                 async (referenceId, message, url, requestedAt) =>
@@ -72,22 +71,21 @@ namespace BlazorApp2.Services
                 });
 
             _hub.On<Guid, string, double, double, string, DateTimeOffset>(
-     "NewDisasterReported",
-     async (referenceId, message, lat, lng, url, createdAt) =>
-     {
-         Console.WriteLine($"[AdminHub] ⚡ NewDisasterReported RECEIVED — {message}");
+                "NewDisasterReported",
+                async (referenceId, message, lat, lng, url, createdAt) =>
+                {
+                    Console.WriteLine($"[AdminHub] ⚡ NewDisasterReported RECEIVED — {message}");
 
-         var evt = new DisasterReportedEvent(
-             referenceId, message, lat, lng, url, createdAt,
-             new List<RecommendedTeamsResponse>(),      // server doesn't send these
-             new List<RecommendedVolunteerResponse>()   // so we pass empty lists
-         );
+                    var evt = new DisasterReportedEvent(
+                        referenceId, message, lat, lng, url, createdAt,
+                        new List<RecommendedTeamsResponse>(),
+                        new List<RecommendedVolunteerResponse>()
+                    );
 
-         if (OnDisasterReported is not null)
-             await OnDisasterReported(evt);
-     });
+                    if (OnDisasterReported is not null)
+                        await OnDisasterReported(evt);
+                });
 
-            // ── Team location ─────────────────────────────────────────────
             _hub.On<Guid, double, double>(
                 "TeamLiveLocationUpdated",
                 async (teamId, lat, lng) =>
@@ -95,6 +93,43 @@ namespace BlazorApp2.Services
                     if (OnTeamLocationUpdated is not null)
                         await OnTeamLocationUpdated(new(teamId, lat, lng));
                 });
+
+            // ── NEW ──
+            _hub.On<Guid, DateTimeOffset>(
+                "DisasterResolved",
+                async (disasterId, resolvedAt) =>
+                {
+                    Console.WriteLine($"[AdminHub] ⚡ DisasterResolved RECEIVED — {disasterId}");
+                    if (OnDisasterResolved is not null)
+                        await OnDisasterResolved(new DisasterResolvedEvent(disasterId, resolvedAt));
+                });
+
+            _hub.On<Guid, string>(
+                "TeamStatusUpdated",
+                async (teamId, status) =>
+                {
+                    Console.WriteLine($"[AdminHub] ⚡ TeamStatusUpdated RECEIVED — {teamId} -> {status}");   // ADD THIS
+                    if (OnTeamStatusUpdated is not null)
+                        await OnTeamStatusUpdated(new TeamStatusUpdatedEvent(teamId, status));
+                });
+
+            _hub.On<Guid>(
+    "DisasterClosed",
+    async (disasterId) =>
+    {
+        Console.WriteLine($"[AdminHub] ⚡ DisasterClosed RECEIVED — {disasterId}");
+        if (OnDisasterClosed is not null)
+            await OnDisasterClosed(disasterId);
+    });
+
+            _hub.On<Guid, Guid>(
+    "TeamAssignedToDisaster",
+    async (teamId, disasterId) =>
+    {
+        Console.WriteLine($"[AdminHub] ⚡ TeamAssignedToDisaster RECEIVED — team {teamId} -> disaster {disasterId}");
+        if (OnTeamAssignedToDisaster is not null)
+            await OnTeamAssignedToDisaster(teamId, disasterId);
+    });
 
             try
             {
@@ -104,11 +139,9 @@ namespace BlazorApp2.Services
             catch (Exception ex)
             {
                 Console.WriteLine($"[AdminHub] Failed to connect: {ex.Message}");
-                _started = false; // allow retry
+                _started = false;
             }
-
         }
-
 
         public async Task StopAsync()
         {
@@ -122,8 +155,6 @@ namespace BlazorApp2.Services
                 await _hub.DisposeAsync();
         }
     }
-
-    // ── Event records ──────────────────────────────────────────────────────
 
     public record VolunteerRegisteredEvent(
         Guid ReferenceId,
@@ -150,6 +181,15 @@ namespace BlazorApp2.Services
         string Title,
         string Message,
         string Icon,
-        string Color,       // "success" | "critical" | "warning" | "info"
+        string Color,
         string NavigateTo);
+
+    // ── NEW ──
+    public record DisasterResolvedEvent(
+        Guid DisasterId,
+        DateTimeOffset ResolvedAt);
+
+    public record TeamStatusUpdatedEvent(
+        Guid TeamId,
+        string Status);
 }

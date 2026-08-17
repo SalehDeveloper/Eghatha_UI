@@ -220,13 +220,11 @@
                     status = item.Status,
                     province = item.Province,
                     city = item.City,
-                    detailUrl = $"/admin/disasters/{item.Id}",
-                    teamsCount = 0,
                 });
             }
         }
 
-        // Load teams with positions
+        // Load teams
         var teamsResult = await Api.GetMapTeamsAsync();
         if (teamsResult.IsSuccess && teamsResult.Data is not null)
         {
@@ -276,6 +274,10 @@
     {
         Hub.OnDisasterReported += OnDisasterReportedAsync;
         Hub.OnTeamLocationUpdated += OnTeamLocationAsync;
+        Hub.OnDisasterResolved += OnDisasterResolvedAsync;
+        Hub.OnTeamStatusUpdated += OnTeamStatusUpdatedAsync;
+        Hub.OnDisasterClosed += OnDisasterClosedAsync;
+        Hub.OnTeamAssignedToDisaster += OnTeamAssignedToDisasterAsync;
     }
 
     private async Task OnDisasterReportedAsync(DisasterReportedEvent evt)
@@ -321,6 +323,58 @@
         _teamPositions[id] = pos;
 
         await PushTeamPinAsync(pos);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnDisasterResolvedAsync(DisasterResolvedEvent evt)
+    {
+        var disaster = _disasters.FirstOrDefault(d => d.Id == evt.DisasterId);
+        if (disaster is not null)
+        {
+            disaster.Status = "Resolved";
+            await JS.InvokeVoidAsync("DersLiveMap.updatePinStatus", disaster.Id.ToString(), "Resolved");
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnTeamStatusUpdatedAsync(TeamStatusUpdatedEvent evt)
+    {
+        if (_teamPositions.TryGetValue(evt.TeamId, out var existing))
+        {
+            var pos = existing with { Status = evt.Status };
+            _teamPositions[evt.TeamId] = pos;
+            await PushTeamPinAsync(pos);
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnTeamAssignedToDisasterAsync(Guid teamId, Guid disasterId)
+    {
+        if (_teamPositions.TryGetValue(teamId, out var existing))
+        {
+            var pos = existing with { DisasterId = disasterId };
+            _teamPositions[teamId] = pos;
+
+            if (!_teamsByDisaster.ContainsKey(disasterId))
+                _teamsByDisaster[disasterId] = new();
+
+            if (!_teamsByDisaster[disasterId].Any(t => t.Id == teamId))
+                _teamsByDisaster[disasterId].Add(new TeamDetailResponse { Id = teamId, Name = pos.Name ?? "" });
+
+            await PushTeamPinAsync(pos);
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnDisasterClosedAsync(Guid disasterId)
+    {
+        _disasters.RemoveAll(d => d.Id == disasterId);
+        _teamsByDisaster.Remove(disasterId);
+
+        await JS.InvokeVoidAsync("DersLiveMap.removePin", disasterId.ToString());
         await InvokeAsync(StateHasChanged);
     }
 
@@ -377,11 +431,14 @@
     {
         Hub.OnDisasterReported -= OnDisasterReportedAsync;
         Hub.OnTeamLocationUpdated -= OnTeamLocationAsync;
+        Hub.OnDisasterResolved -= OnDisasterResolvedAsync;
+        Hub.OnTeamStatusUpdated -= OnTeamStatusUpdatedAsync;
+        Hub.OnDisasterClosed -= OnDisasterClosedAsync;
+        Hub.OnTeamAssignedToDisaster -= OnTeamAssignedToDisasterAsync;
 
         if (_mapReady)
             await JS.InvokeVoidAsync("DersLiveMap.destroy");
     }
-
     /* ── Inner types ────────────────────────────────────────────────── */
 
     private class DisasterMapItem
