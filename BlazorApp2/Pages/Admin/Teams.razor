@@ -476,13 +476,18 @@
                             }
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Province</label>
-                        <input class="form-input" @bind="UpdateModel.Province" />
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">City</label>
-                        <input class="form-input" @bind="UpdateModel.City" />
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label class="form-label">Team Location</label>
+                        <!-- Map renders here — JS initialises it in OnAfterRenderAsync -->
+                        <div id="teamLocationMap" style="height:350px;width:100%;border-radius:8px;"></div>
+                        <div style="display:flex;gap:12px;margin-top:8px;">
+                            <input id="teamLocationLat" class="form-input font-mono" placeholder="Latitude (click map)" readonly />
+                            <input id="teamLocationLng" class="form-input font-mono" placeholder="Longitude (click map)" readonly />
+                        </div>
+                        <div id="locCoordDisplay" class="coords-hint">
+                            <i class="fa-solid fa-location-crosshairs"></i>
+                            Click the map or drag the pin to update the team's location
+                        </div>
                     </div>
                 </div>
                 @if (!string.IsNullOrEmpty(UpdateError))
@@ -704,9 +709,19 @@
             await Task.Delay(150);
             await JS.InvokeVoidAsync("mapInterop.initCreateMap");
         }
+
+        if (_shouldInitEditMap)
+        {
+            _shouldInitEditMap = false;
+            // Small delay so the modal CSS animation finishes painting the div
+            await Task.Delay(150);
+            await JS.InvokeVoidAsync("mapInterop.initLocationMap",
+                UpdateModel.Latitude ?? 0, UpdateModel.Longitude ?? 0, 0d, 0d);
+        }
     }
 
     private bool _shouldInitMap = false;
+    private bool _shouldInitEditMap = false;
 
     // ── Data loaders ────────────────────────────────────────────────
     private async Task LoadRefDataAsync()
@@ -995,18 +1010,30 @@
         UpdateModel = new UpdateTeamRequest
         {
             Name = ActiveTeam.Name,
-            Province = ActiveTeam.Province,
-            Speciality = ActiveTeam.Speciality,
-            City = ActiveTeam.City
+            Speciality = ActiveTeam.Speciality
+            // NOTE: TeamResponse does not expose Latitude/Longitude, so we can't
+            // pre-fill the team's existing position. The map opens blank (same
+            // as Create Team) and the admin clicks/drags to set a new location.
         };
         UpdateError = "";
         ShowEdit = true;
+        _shouldInitEditMap = true;   // triggers OnAfterRenderAsync to init the map
     }
 
     private async Task SubmitEditTeam()
     {
         if (ActiveTeam is null) return;
         UpdateError = "";
+
+        // Read lat/lng from the map input fields via JS
+        var lat = await JS.InvokeAsync<double>("window.getTeamLocationLat");
+        var lng = await JS.InvokeAsync<double>("window.getTeamLocationLng");
+        UpdateModel.Latitude = lat;
+        UpdateModel.Longitude = lng;
+
+        if (lat == 0 && lng == 0)
+        { UpdateError = "Please click the map to pick a location."; return; }
+
         IsUpdating = true;
 
         var result = await ServiceApi.UpdateTeamAsync(ActiveTeam.Id, UpdateModel);
